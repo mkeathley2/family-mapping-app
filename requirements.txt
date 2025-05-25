@@ -1,5 +1,5 @@
 Flask
 pandas
 geopy
-folium
-requests 
+requests
+Werkzeug 

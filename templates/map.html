@@ -2,64 +2,298 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Family Mapping App</title>
+    <title>Family Mapping App v0.0.2</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        #map { height: 90vh; width: 100vw; }
-        .instructions {
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        
+        /* Header Panel */
+        .header-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background-color: rgba(255,255,255,0.95);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            max-width: 350px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        /* Dataset Management */
+        .dataset-section {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .current-dataset {
+            background-color: #e8f5e8;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #2d5a2d;
+        }
+        
+        .dataset-list {
+            max-height: 120px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .dataset-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .dataset-item:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .dataset-item:last-child {
+            border-bottom: none;
+        }
+        
+        .dataset-name {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .dataset-info {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* Upload Section */
+        .upload-section {
+            margin-bottom: 15px;
+        }
+        
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .upload-form input[type="text"],
+        .upload-form input[type="file"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .upload-btn {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .upload-btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .upload-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Progress Modal */
+        .progress-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .progress-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .current-address {
+            font-size: 12px;
+            color: #888;
+            max-height: 40px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        /* Map Controls */
+        .map-controls {
             position: absolute;
             top: 10px;
             right: 10px;
             z-index: 1000;
-            padding: 10px;
-            background-color: rgba(255,255,255,0.9);
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 14px;
-            max-width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .export-btn {
-            position: absolute;
-            top: 120px;
-            right: 10px;
-            z-index: 1000;
+        
+        .control-btn {
             padding: 10px 15px;
-            background-color: #28a745;
-            color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
             font-weight: bold;
-            display: none;
+            min-width: 150px;
         }
-        .draw-mode {
-            position: absolute;
-            top: 170px;
-            right: 10px;
-            z-index: 1000;
-            padding: 8px 12px;
+        
+        .draw-mode-btn {
             background-color: #007bff;
             color: white;
-            border: none;
+        }
+        
+        .export-btn {
+            background-color: #28a745;
+            color: white;
+            display: none;
+        }
+        
+        .instructions {
+            background-color: rgba(255,255,255,0.9);
+            padding: 10px;
             border-radius: 5px;
-            cursor: pointer;
             font-size: 12px;
-            font-weight: bold;
+            max-width: 200px;
+        }
+        
+        /* Error/Success Messages */
+        .message {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
         }
     </style>
 </head>
 <body>
-    <div class="instructions">
-        <strong>How to use:</strong><br>
-        1. Click "Draw Circle Mode" to enable drawing<br>
-        2. Click and drag to draw a circle<br>
-        3. Click "Map Navigation" to move the map<br>
-        4. Click export button to download CSV
+    <!-- Header Panel with Dataset Management -->
+    <div class="header-panel">
+        <h3>📍 Family Mapping App v0.0.2</h3>
+        
+        <!-- Current Dataset -->
+        <div class="dataset-section">
+            <div class="current-dataset">
+                Current: {{ current_dataset or 'No dataset selected' }}
+                {% if current_dataset %}
+                <br><small>{{ addresses_json|length if addresses_json else 0 }} addresses loaded</small>
+                {% endif %}
+            </div>
+            
+            {% if datasets %}
+            <div class="dataset-list">
+                {% for dataset in datasets %}
+                <div class="dataset-item" onclick="switchDataset('{{ dataset.name }}')">
+                    <div class="dataset-name">{{ dataset.name }}</div>
+                    <div class="dataset-info">{{ dataset.address_count }} addresses • {{ dataset.last_modified }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Upload New Dataset -->
+        <div class="upload-section">
+            <h4 style="margin: 0 0 10px 0; font-size: 14px;">📤 Upload New Dataset</h4>
+            <form class="upload-form" id="uploadForm" enctype="multipart/form-data">
+                <input type="text" id="datasetName" placeholder="Dataset name (e.g., 'Family Reunion 2024')" required>
+                <input type="file" id="csvFile" accept=".csv" required>
+                <button type="submit" class="upload-btn" id="uploadBtn">Upload & Geocode</button>
+            </form>
+            <div id="uploadMessage"></div>
+        </div>
     </div>
-    <button class="export-btn" id="exportBtn" onclick="exportCircleSelection()">Export Addresses in Circle to CSV</button>
-    <button class="draw-mode" id="drawModeBtn" onclick="toggleDrawMode()">Draw Circle Mode</button>
+    
+    <!-- Map Controls -->
+    <div class="map-controls">
+        <div class="instructions">
+            <strong>How to use:</strong><br>
+            1. Click "Draw Circle Mode"<br>
+            2. Click and drag on map<br>
+            3. Export selected addresses
+        </div>
+        <button class="control-btn draw-mode-btn" id="drawModeBtn" onclick="toggleDrawMode()">Draw Circle Mode</button>
+        <button class="control-btn export-btn" id="exportBtn" onclick="exportCircleSelection()">Export Selection to CSV</button>
+    </div>
+    
+    <!-- Progress Modal -->
+    <div class="progress-modal" id="progressModal">
+        <div class="progress-content">
+            <h3>🌍 Geocoding Addresses</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Preparing...</div>
+            <div class="current-address" id="currentAddress"></div>
+            <button onclick="closeProgressModal()" style="margin-top: 20px; padding: 8px 16px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; display: none;" id="closeProgressBtn">Close</button>
+        </div>
+    </div>
+    
+    <!-- Map -->
     <div id="map"></div>
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -70,6 +304,7 @@
         var isDrawing = false;
         var startPoint = null;
         var drawMode = false;
+        var progressInterval = null;
         
         // Initialize map
         map = L.map('map').setView([32.7767, -96.7970], 11);
@@ -80,25 +315,160 @@
         }).addTo(map);
         
         // Add markers
-        addressData.forEach(function(addr) {
-            L.marker([addr.Latitude, addr.Longitude])
-                .bindPopup(addr['Family Name'] + '<br>' + addr.Address + '<br>' + addr.City + ', ' + addr.State + ' ' + addr.Zip)
-                .addTo(map);
+        function loadMarkers() {
+            // Clear existing markers
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // Add new markers
+            addressData.forEach(function(addr) {
+                L.marker([addr.Latitude, addr.Longitude])
+                    .bindPopup(addr['Family Name'] + '<br>' + addr.Address + '<br>' + addr.City + ', ' + addr.State + ' ' + addr.Zip)
+                    .addTo(map);
+            });
+        }
+        
+        loadMarkers();
+        
+        // Dataset Management
+        function switchDataset(datasetName) {
+            window.location.href = '/switch_dataset/' + encodeURIComponent(datasetName);
+        }
+        
+        // File Upload
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            var formData = new FormData();
+            var fileInput = document.getElementById('csvFile');
+            var datasetName = document.getElementById('datasetName').value.trim();
+            
+            if (!fileInput.files[0] || !datasetName) {
+                showMessage('Please provide both a dataset name and CSV file.', 'error');
+                return;
+            }
+            
+            formData.append('file', fileInput.files[0]);
+            formData.append('dataset_name', datasetName);
+            
+            // Disable upload button
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('uploadBtn').textContent = 'Uploading...';
+            
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showMessage(data.error, 'error');
+                    document.getElementById('uploadBtn').disabled = false;
+                    document.getElementById('uploadBtn').textContent = 'Upload & Geocode';
+                } else {
+                    // Start progress tracking
+                    showProgressModal();
+                    trackProgress(data.progress_id);
+                    
+                    // Reset form
+                    document.getElementById('uploadForm').reset();
+                    document.getElementById('uploadBtn').disabled = false;
+                    document.getElementById('uploadBtn').textContent = 'Upload & Geocode';
+                }
+            })
+            .catch(error => {
+                showMessage('Upload failed: ' + error.message, 'error');
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('uploadBtn').textContent = 'Upload & Geocode';
+            });
         });
         
-        // Toggle between draw mode and navigation mode
+        // Progress Tracking
+        function showProgressModal() {
+            document.getElementById('progressModal').style.display = 'flex';
+            document.getElementById('closeProgressBtn').style.display = 'none';
+        }
+        
+        function closeProgressModal() {
+            document.getElementById('progressModal').style.display = 'none';
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+        }
+        
+        function trackProgress(progressId) {
+            progressInterval = setInterval(function() {
+                fetch('/progress/' + progressId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'not_found') {
+                        clearInterval(progressInterval);
+                        showMessage('Progress tracking lost. Please refresh the page.', 'error');
+                        closeProgressModal();
+                        return;
+                    }
+                    
+                    var progressPercent = data.total > 0 ? (data.progress / data.total) * 100 : 0;
+                    document.getElementById('progressFill').style.width = progressPercent + '%';
+                    
+                    if (data.status === 'starting') {
+                        document.getElementById('progressText').textContent = 'Preparing dataset...';
+                        document.getElementById('currentAddress').textContent = '';
+                    } else if (data.status === 'geocoding') {
+                        document.getElementById('progressText').textContent = 
+                            'Geocoding: ' + data.progress + ' of ' + data.total + ' addresses (' + Math.round(progressPercent) + '%)';
+                        document.getElementById('currentAddress').textContent = 
+                            'Current: ' + (data.current_address || '');
+                    } else if (data.status === 'completed') {
+                        document.getElementById('progressText').textContent = 'Geocoding completed successfully!';
+                        document.getElementById('currentAddress').textContent = 
+                            'Processed ' + data.total + ' addresses. Refreshing page...';
+                        document.getElementById('closeProgressBtn').style.display = 'inline-block';
+                        
+                        clearInterval(progressInterval);
+                        
+                        // Refresh page after 2 seconds
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    } else if (data.status === 'error') {
+                        document.getElementById('progressText').textContent = 'Error occurred during geocoding';
+                        document.getElementById('currentAddress').textContent = 'Error: ' + (data.error || 'Unknown error');
+                        document.getElementById('closeProgressBtn').style.display = 'inline-block';
+                        clearInterval(progressInterval);
+                    }
+                })
+                .catch(error => {
+                    console.error('Progress tracking error:', error);
+                });
+            }, 1000);
+        }
+        
+        // Message Display
+        function showMessage(message, type) {
+            var messageDiv = document.getElementById('uploadMessage');
+            messageDiv.innerHTML = '<div class="message ' + type + '">' + message + '</div>';
+            setTimeout(function() {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+        
+        // Map Drawing Functions (same as before)
         function toggleDrawMode() {
             drawMode = !drawMode;
             var btn = document.getElementById('drawModeBtn');
             if (drawMode) {
                 btn.textContent = 'Map Navigation';
-                btn.style.backgroundColor = '#dc3545'; // Red color
+                btn.style.backgroundColor = '#dc3545';
                 map.getContainer().style.cursor = 'crosshair';
             } else {
                 btn.textContent = 'Draw Circle Mode';
-                btn.style.backgroundColor = '#007bff'; // Blue color
+                btn.style.backgroundColor = '#007bff';
                 map.getContainer().style.cursor = '';
-                // If we were drawing, stop
                 if (isDrawing) {
                     isDrawing = false;
                     startPoint = null;
@@ -107,19 +477,16 @@
             }
         }
         
-        // Mouse down - start drawing only if in draw mode
         map.on('mousedown', function(e) {
-            if (!drawMode || e.originalEvent.button !== 0) return; // Early exit for performance
+            if (!drawMode || e.originalEvent.button !== 0) return;
             
             isDrawing = true;
             startPoint = e.latlng;
             
-            // Remove existing circle
             if (currentCircle) {
                 map.removeLayer(currentCircle);
             }
             
-            // Create initial circle with small radius for visibility
             currentCircle = L.circle(startPoint, {
                 color: 'red',
                 fillColor: '#f03',
@@ -127,44 +494,36 @@
                 radius: 50
             }).addTo(map);
             
-            // Prevent map dragging while drawing
             map.dragging.disable();
         });
         
-        // Mouse move - update circle size (optimized)
         map.on('mousemove', function(e) {
-            if (!isDrawing || !startPoint || !currentCircle) return; // Early exit for performance
+            if (!isDrawing || !startPoint || !currentCircle) return;
             
             var radius = Math.max(50, map.distance(startPoint, e.latlng));
             currentCircle.setRadius(radius);
         });
         
-        // Mouse up - finish drawing
         map.on('mouseup', function(e) {
-            if (!isDrawing) return; // Early exit for performance
+            if (!isDrawing) return;
             
             isDrawing = false;
             
-            // Final update to exact position
             if (startPoint && currentCircle) {
                 var radius = Math.max(50, map.distance(startPoint, e.latlng));
                 currentCircle.setRadius(radius);
             }
             
             startPoint = null;
-            
-            // Re-enable map dragging
             map.dragging.enable();
             
-            // Always show export button since we have a minimum radius
             if (currentCircle) {
                 document.getElementById('exportBtn').style.display = 'block';
             }
         });
         
-        // Handle mouse leave to stop drawing
         map.on('mouseout', function(e) {
-            if (!isDrawing) return; // Early exit for performance
+            if (!isDrawing) return;
             
             isDrawing = false;
             startPoint = null;
@@ -184,45 +543,50 @@
             var center = currentCircle.getLatLng();
             var radius = currentCircle.getRadius();
             
-            var selectedAddresses = [];
-            addressData.forEach(function(addr) {
-                var distance = map.distance(
-                    [addr.Latitude, addr.Longitude],
-                    [center.lat, center.lng]
-                );
-                if (distance <= radius) {
-                    selectedAddresses.push(addr);
+            fetch('/export_csv', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    center: [center.lat, center.lng],
+                    radius: radius
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
                 }
+                throw new Error('Export failed');
+            })
+            .then(blob => {
+                var url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'selected_addresses.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                // Count selected addresses for user feedback
+                var selectedCount = 0;
+                addressData.forEach(function(addr) {
+                    var distance = map.distance(
+                        [addr.Latitude, addr.Longitude],
+                        [center.lat, center.lng]
+                    );
+                    if (distance <= radius) {
+                        selectedCount++;
+                    }
+                });
+                
+                alert('Exported ' + selectedCount + ' addresses to CSV!');
+            })
+            .catch(error => {
+                alert('Export failed: ' + error.message);
             });
-            
-            if (selectedAddresses.length === 0) {
-                alert('No addresses found within the circle!');
-                return;
-            }
-            
-            // Convert to CSV and download
-            var csv = 'Family Name,Address,City,State,Zip,Latitude,Longitude\n';
-            selectedAddresses.forEach(function(addr) {
-                csv += '"' + (addr['Family Name'] || '').replace(/"/g, '""') + '","' + 
-                       (addr.Address || '').replace(/"/g, '""') + '","' + 
-                       (addr.City || '').replace(/"/g, '""') + '","' + 
-                       (addr.State || '').replace(/"/g, '""') + '","' + 
-                       (addr.Zip || '').replace(/"/g, '""') + '",' + 
-                       addr.Latitude + ',' + addr.Longitude + '\n';
-            });
-            
-            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            var url = window.URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = 'selected_addresses.csv';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-            
-            alert('Exported ' + selectedAddresses.length + ' addresses to CSV!');
         }
     </script>
 </body>
