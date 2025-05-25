@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Family Mapping App v0.0.2</title>
+    <title>Family Mapping App v0.0.3</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -300,7 +300,7 @@
 <body>
     <!-- Header Panel with Dataset Management -->
     <div class="header-panel">
-        <h3>📍 Family Mapping App v0.0.2</h3>
+        <h3>📍 Family Mapping App v0.0.3</h3>
         
         <!-- Current Dataset -->
         <div class="dataset-section">
@@ -366,7 +366,10 @@
             </div>
             <div class="progress-text" id="progressText">Preparing...</div>
             <div class="current-address" id="currentAddress"></div>
-            <button onclick="closeProgressModal()" style="margin-top: 20px; padding: 8px 16px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; display: none;" id="closeProgressBtn">Close</button>
+            <div style="margin-top: 20px;">
+                <button onclick="cancelGeocoding()" style="padding: 8px 16px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px;" id="cancelGeocodingBtn">❌ Cancel</button>
+                <button onclick="closeProgressModal()" style="padding: 8px 16px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; display: none;" id="closeProgressBtn">Close</button>
+            </div>
         </div>
     </div>
     
@@ -375,6 +378,7 @@
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // ===== GLOBAL VARIABLES =====
         var addressData = {{ addresses_json|safe }};
         var currentCircle = null;
         var map = null;
@@ -383,16 +387,19 @@
         var drawMode = false;
         var progressInterval = null;
         var currentGeocodingDataset = null; // Track the dataset being geocoded
+        var currentProgressId = null; // Track the current progress ID for cancellation
         
-        // Initialize map
+        // ===== MAP INITIALIZATION =====
+        // Initialize map centered on Dallas, TX
         map = L.map('map').setView([32.7767, -96.7970], 11);
         
-        // Add tile layer
+        // Add OpenStreetMap tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
         
-        // Add markers
+        // ===== MARKER MANAGEMENT =====
+        // Load and display address markers on the map
         function loadMarkers() {
             // Clear existing markers
             map.eachLayer(function(layer) {
@@ -401,7 +408,7 @@
                 }
             });
             
-            // Add new markers
+            // Add new markers for each address
             addressData.forEach(function(addr) {
                 L.marker([addr.Latitude, addr.Longitude])
                     .bindPopup(addr['Family Name'] + '<br>' + addr.Address + '<br>' + addr.City + ', ' + addr.State + ' ' + addr.Zip)
@@ -411,12 +418,14 @@
         
         loadMarkers();
         
-        // Dataset Management
+        // ===== DATASET MANAGEMENT =====
+        // Switch to a different dataset
         function switchDataset(datasetName) {
             window.location.href = '/switch_dataset/' + encodeURIComponent(datasetName);
         }
         
-        // File Upload
+        // ===== FILE UPLOAD AND GEOCODING =====
+        // Handle file upload form submission
         document.getElementById('uploadForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -435,10 +444,11 @@
             // Store the dataset name for failed address downloads
             currentGeocodingDataset = datasetName;
             
-            // Disable upload button
+            // Disable upload button during processing
             document.getElementById('uploadBtn').disabled = true;
             document.getElementById('uploadBtn').textContent = 'Uploading...';
             
+            // Submit upload request
             fetch('/upload', {
                 method: 'POST',
                 body: formData
@@ -467,23 +477,89 @@
             });
         });
         
-        // Progress Tracking
+        // ===== PROGRESS TRACKING =====
+        // Show the progress modal
         function showProgressModal() {
             document.getElementById('progressModal').style.display = 'flex';
             document.getElementById('closeProgressBtn').style.display = 'none';
+            document.getElementById('cancelGeocodingBtn').style.display = 'inline-block';
         }
         
+        // Close the progress modal and refresh page
         function closeProgressModal() {
             document.getElementById('progressModal').style.display = 'none';
             if (progressInterval) {
                 clearInterval(progressInterval);
                 progressInterval = null;
             }
+            currentProgressId = null;
             // Refresh page to show new dataset
             window.location.reload();
         }
         
+        // ===== GEOCODING CANCELLATION =====
+        // Cancel ongoing geocoding process
+        function cancelGeocoding() {
+            if (!currentProgressId || !currentGeocodingDataset) {
+                return;
+            }
+            
+            // Show confirmation dialog
+            if (!confirm('⚠️ Are you sure you want to cancel geocoding?\n\nWarning: All currently geocoded addresses for this dataset will be lost and the dataset will be deleted.')) {
+                return;
+            }
+            
+            // Double confirmation for safety
+            if (!confirm('This is your final warning!\n\nThe entire "' + currentGeocodingDataset + '" dataset will be permanently deleted. Are you absolutely sure?')) {
+                return;
+            }
+            
+            // Disable cancel button and show canceling status
+            var cancelBtn = document.getElementById('cancelGeocodingBtn');
+            cancelBtn.disabled = true;
+            cancelBtn.textContent = '⏳ Canceling...';
+            
+            // Send cancel request
+            fetch('/cancel_geocoding/' + encodeURIComponent(currentProgressId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    'dataset_name': currentGeocodingDataset
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear progress tracking
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                    }
+                    currentProgressId = null;
+                    currentGeocodingDataset = null;
+                    
+                    // Close modal and refresh page immediately after successful cancellation
+                    document.getElementById('progressModal').style.display = 'none';
+                    window.location.reload();
+                } else {
+                    alert('Failed to cancel geocoding: ' + (data.error || 'Unknown error'));
+                    cancelBtn.disabled = false;
+                    cancelBtn.textContent = '❌ Cancel';
+                }
+            })
+            .catch(error => {
+                console.error('Cancel error:', error);
+                alert('Failed to cancel geocoding: ' + error.message);
+                cancelBtn.disabled = false;
+                cancelBtn.textContent = '❌ Cancel';
+            });
+        }
+        
+        // Track geocoding progress with real-time updates
         function trackProgress(progressId) {
+            currentProgressId = progressId; // Store for cancellation
             progressInterval = setInterval(function() {
                 fetch('/progress/' + progressId)
                 .then(response => response.json())
@@ -495,9 +571,11 @@
                         return;
                     }
                     
+                    // Update progress bar
                     var progressPercent = data.total > 0 ? (data.progress / data.total) * 100 : 0;
                     document.getElementById('progressFill').style.width = progressPercent + '%';
                     
+                    // Update status text based on current phase
                     if (data.status === 'starting') {
                         document.getElementById('progressText').textContent = 'Preparing dataset...';
                         document.getElementById('currentAddress').textContent = '';
@@ -507,6 +585,7 @@
                         document.getElementById('currentAddress').textContent = 
                             'Current: ' + (data.current_address || '');
                     } else if (data.status === 'completed') {
+                        // Geocoding completed successfully
                         var successCount = data.successful_count || 0;
                         var failedCount = data.failed_count || 0;
                         var totalCount = data.total || 0;
@@ -540,25 +619,35 @@
                             downloadFailedBtn.style.display = 'block';
                         }
                         
+                        // Switch button visibility
+                        document.getElementById('cancelGeocodingBtn').style.display = 'none';
                         document.getElementById('closeProgressBtn').style.display = 'inline-block';
                         
                         clearInterval(progressInterval);
+                        currentProgressId = null;
                         
-                        // Remove automatic refresh - let user close manually
-                        // setTimeout(function() {
-                        //     window.location.reload();
-                        // }, 3000);
                     } else if (data.status === 'error') {
+                        // Handle geocoding errors
                         document.getElementById('progressText').textContent = 'Error occurred during geocoding';
                         document.getElementById('currentAddress').textContent = 'Error: ' + (data.error || 'Unknown error');
+                        document.getElementById('cancelGeocodingBtn').style.display = 'none';
                         document.getElementById('closeProgressBtn').style.display = 'inline-block';
                         clearInterval(progressInterval);
+                        currentProgressId = null;
+                    } else if (data.status === 'canceled') {
+                        // Handle cancellation
+                        document.getElementById('progressText').textContent = 'Geocoding was canceled';
+                        document.getElementById('currentAddress').textContent = 'Dataset has been deleted.';
+                        document.getElementById('cancelGeocodingBtn').style.display = 'none';
+                        document.getElementById('closeProgressBtn').style.display = 'inline-block';
+                        clearInterval(progressInterval);
+                        currentProgressId = null;
                     }
                 })
                 .catch(error => {
                     console.error('Progress tracking error:', error);
                 });
-            }, 1000);
+            }, 1000); // Update every second
         }
         
         // Message Display

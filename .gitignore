@@ -44,4 +44,12 @@ Thumbs.db
 
 # Backup files
 *.bak
-*.backup 
+*.backup
+
+# Docker-related files (keep source files, ignore runtime)
+.docker/
+docker-compose.override.yml
+.dockerignore
+
+# Release package (generated content)
+release-package/ 

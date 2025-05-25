@@ -1,3 +1,20 @@
+"""
+Family Mapping App v0.0.3
+
+A comprehensive Flask web application for geocoding family addresses and visualizing them on an interactive map.
+
+Features:
+- File upload and dataset management
+- Real-time geocoding with progress tracking and cancellation
+- Failed address tracking and export
+- Interactive map with circle selection
+- CSV export with PeopleID links
+- Individual and bulk dataset deletion
+
+Author: Family Mapping App Team
+Version: 0.0.3
+"""
+
 from flask import Flask, render_template, request, send_file, jsonify, redirect, url_for, session
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -25,6 +42,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Global progress tracking
 geocoding_progress = {}
+geocoding_cancel_flags = {}  # Track cancellation requests
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -168,7 +186,7 @@ def geocode_dataset(dataset_name, csv_file_path, progress_id):
             # More robust column mapping logic for files with headers
             for i, col in enumerate(df_columns):
                 col_lower = str(col).lower()
-                if i == 0 or 'family' in col_lower or 'name' in col_lower:
+                if i == 0 or 'family' in col_lower or ('name' in col_lower and 'file' not in col_lower):
                     column_mapping['Family Name'] = col
                 elif i == 1 or ('address' in col_lower and 'email' not in col_lower):
                     column_mapping['Address'] = col
@@ -245,6 +263,25 @@ def geocode_dataset(dataset_name, csv_file_path, progress_id):
         max_consecutive_failures = 5
         
         for idx, row in df.iterrows():
+            # Check for cancellation request
+            if geocoding_cancel_flags.get(progress_id, False):
+                print(f"Geocoding canceled for progress_id: {progress_id}")
+                geocoding_progress[progress_id]['status'] = 'canceled'
+                geocoding_progress[progress_id]['completed'] = True
+                
+                # Clean up the dataset directory
+                try:
+                    import shutil
+                    if os.path.exists(dataset_path):
+                        shutil.rmtree(dataset_path)
+                        print(f"Deleted canceled dataset directory: {dataset_path}")
+                except Exception as cleanup_error:
+                    print(f"Error cleaning up canceled dataset: {str(cleanup_error)}")
+                
+                # Clean up cancellation flag
+                geocoding_cancel_flags.pop(progress_id, None)
+                return
+            
             # Clean and format address
             address_parts = []
             if row['Address'].strip():
@@ -316,6 +353,19 @@ def geocode_dataset(dataset_name, csv_file_path, progress_id):
         # Save failed addresses if any
         if failed_addresses:
             failed_df = pd.DataFrame(failed_addresses)
+            
+            # Rename 'Family Name' column to 'Name' if it exists
+            if 'Family Name' in failed_df.columns:
+                failed_df = failed_df.rename(columns={'Family Name': 'Name'})
+                print(f"Renamed 'Family Name' column to 'Name' in failed addresses")
+            
+            # Add PeopleID Link column
+            if 'PeopleID' in failed_df.columns:
+                failed_df['PeopleID Link'] = failed_df['PeopleID'].apply(
+                    lambda x: f"https://my.hpumc.org/Person2/{x}" if pd.notna(x) and str(x).strip() != '' else ''
+                )
+                print(f"Added PeopleID Link column for {len(failed_df)} failed addresses")
+            
             failed_file = os.path.join(dataset_path, 'failed_addresses.csv')
             failed_df.to_csv(failed_file, index=False)
             print(f"Saved {len(failed_addresses)} failed addresses to {failed_file}")
@@ -346,6 +396,9 @@ def geocode_dataset(dataset_name, csv_file_path, progress_id):
         # Clean up uploaded file
         if os.path.exists(csv_file_path):
             os.remove(csv_file_path)
+        
+        # Clean up cancellation flag
+        geocoding_cancel_flags.pop(progress_id, None)
 
 @app.route('/')
 def index():
@@ -435,6 +488,26 @@ def upload_file():
 def get_progress(progress_id):
     return jsonify(geocoding_progress.get(progress_id, {'status': 'not_found'}))
 
+@app.route('/cancel_geocoding/<progress_id>', methods=['POST'])
+def cancel_geocoding(progress_id):
+    """Cancel an ongoing geocoding operation"""
+    try:
+        data = request.json
+        dataset_name = data.get('dataset_name')
+        
+        if not dataset_name:
+            return jsonify({'success': False, 'error': 'Dataset name is required'}), 400
+        
+        # Set cancellation flag
+        geocoding_cancel_flags[progress_id] = True
+        print(f"Cancellation requested for progress_id: {progress_id}, dataset: {dataset_name}")
+        
+        return jsonify({'success': True, 'message': 'Cancellation request sent'})
+        
+    except Exception as e:
+        print(f"Error canceling geocoding: {str(e)}")
+        return jsonify({'success': False, 'error': f'Failed to cancel geocoding: {str(e)}'}), 500
+
 @app.route('/download_failed_addresses/<dataset_name>')
 def download_failed_addresses(dataset_name):
     """Download failed addresses for a specific dataset"""
@@ -444,11 +517,41 @@ def download_failed_addresses(dataset_name):
         if not os.path.exists(failed_file):
             return jsonify({'error': 'No failed addresses file found for this dataset'}), 404
         
-        filename = f'failed_addresses_{dataset_name}.csv'
-        return send_file(failed_file, 
-                        mimetype='text/csv', 
-                        as_attachment=True, 
-                        download_name=filename)
+        # Read the failed addresses CSV and rename the column
+        try:
+            failed_df = pd.read_csv(failed_file)
+            
+            # Rename 'Family Name' column to 'Name' if it exists
+            if 'Family Name' in failed_df.columns:
+                failed_df = failed_df.rename(columns={'Family Name': 'Name'})
+                print(f"Renamed 'Family Name' column to 'Name' for failed addresses download")
+            
+            # Add PeopleID Link column if it doesn't exist
+            if 'PeopleID' in failed_df.columns and 'PeopleID Link' not in failed_df.columns:
+                failed_df['PeopleID Link'] = failed_df['PeopleID'].apply(
+                    lambda x: f"https://my.hpumc.org/Person2/{x}" if pd.notna(x) and str(x).strip() != '' else ''
+                )
+                print(f"Added PeopleID Link column for {len(failed_df)} failed addresses download")
+            
+            # Create a temporary file with the renamed column
+            output = io.StringIO()
+            failed_df.to_csv(output, index=False)
+            output.seek(0)
+            
+            filename = f'failed_addresses_{dataset_name}.csv'
+            return send_file(io.BytesIO(output.getvalue().encode()), 
+                            mimetype='text/csv', 
+                            as_attachment=True, 
+                            download_name=filename)
+            
+        except Exception as e:
+            print(f"Error processing failed addresses file: {str(e)}")
+            # Fallback to original file if processing fails
+            filename = f'failed_addresses_{dataset_name}.csv'
+            return send_file(failed_file, 
+                            mimetype='text/csv', 
+                            as_attachment=True, 
+                            download_name=filename)
         
     except Exception as e:
         print(f"Error downloading failed addresses: {str(e)}")
@@ -540,9 +643,16 @@ def export_csv():
     
     selected = df[df.apply(lambda row: haversine(center[0], center[1], row['Latitude'], row['Longitude']) <= radius, axis=1)]
     
+    # Make a copy to avoid SettingWithCopyWarning
+    selected = selected.copy()
+    
+    # Rename 'Family Name' column to 'Name' if it exists
+    if 'Family Name' in selected.columns:
+        selected = selected.rename(columns={'Family Name': 'Name'})
+        print(f"Renamed 'Family Name' column to 'Name' for export")
+    
     # Add PeopleID Link column
     if 'PeopleID' in selected.columns:
-        selected = selected.copy()  # Make a copy to avoid SettingWithCopyWarning
         selected['PeopleID Link'] = selected['PeopleID'].apply(
             lambda x: f"https://my.hpumc.org/Person2/{x}" if pd.notna(x) and str(x).strip() != '' else ''
         )
@@ -559,4 +669,4 @@ def export_csv():
                      download_name=filename)
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=True, host='0.0.0.0', port=8765) 
