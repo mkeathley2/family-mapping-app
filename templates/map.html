@@ -12,7 +12,7 @@
         /* Header Panel */
         .header-panel {
             position: absolute;
-            top: 10px;
+            top: 80px;
             left: 10px;
             z-index: 1000;
             background-color: rgba(255,255,255,0.95);
@@ -58,6 +58,9 @@
             border-bottom: 1px solid #eee;
             cursor: pointer;
             transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .dataset-item:hover {
@@ -68,6 +71,11 @@
             border-bottom: none;
         }
         
+        .dataset-info-container {
+            flex: 1;
+            cursor: pointer;
+        }
+        
         .dataset-name {
             font-weight: bold;
             color: #333;
@@ -76,6 +84,24 @@
         .dataset-info {
             font-size: 12px;
             color: #666;
+        }
+        
+        .dataset-delete-btn {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-left: 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .dataset-delete-btn:hover {
+            background-color: #dc3545;
+            color: white;
         }
         
         /* Upload Section */
@@ -114,6 +140,47 @@
         .upload-btn:disabled {
             background-color: #ccc;
             cursor: not-allowed;
+        }
+        
+        /* Clear Datasets Button */
+        .clear-btn {
+            padding: 8px 12px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .clear-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .clear-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Download Failed Addresses Button */
+        .download-failed-btn {
+            padding: 8px 16px;
+            background-color: #ffc107;
+            color: #212529;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            margin: 10px 0;
+            display: none;
+        }
+        
+        .download-failed-btn:hover {
+            background-color: #e0a800;
         }
         
         /* Progress Modal */
@@ -240,16 +307,19 @@
             <div class="current-dataset">
                 Current: {{ current_dataset or 'No dataset selected' }}
                 {% if current_dataset %}
-                <br><small>{{ addresses_json|length if addresses_json else 0 }} addresses loaded</small>
+                <br><small id="addressCount">{{ address_count }} addresses loaded</small>
                 {% endif %}
             </div>
             
             {% if datasets %}
             <div class="dataset-list">
                 {% for dataset in datasets %}
-                <div class="dataset-item" onclick="switchDataset('{{ dataset.name }}')">
-                    <div class="dataset-name">{{ dataset.name }}</div>
-                    <div class="dataset-info">{{ dataset.address_count }} addresses • {{ dataset.last_modified }}</div>
+                <div class="dataset-item">
+                    <div class="dataset-info-container" onclick="switchDataset('{{ dataset.name }}')">
+                        <div class="dataset-name">{{ dataset.name }}</div>
+                        <div class="dataset-info">{{ dataset.address_count }} addresses • {{ dataset.last_modified }}</div>
+                    </div>
+                    <button class="dataset-delete-btn" onclick="deleteDataset('{{ dataset.name }}', event)">✕</button>
                 </div>
                 {% endfor %}
             </div>
@@ -266,6 +336,13 @@
             </form>
             <div id="uploadMessage"></div>
         </div>
+        
+        <!-- Clear All Datasets -->
+        {% if datasets %}
+        <div class="clear-section">
+            <button class="clear-btn" id="clearAllBtn" onclick="clearAllDatasets()">🗑️ Clear All Datasets</button>
+        </div>
+        {% endif %}
     </div>
     
     <!-- Map Controls -->
@@ -305,6 +382,7 @@
         var startPoint = null;
         var drawMode = false;
         var progressInterval = null;
+        var currentGeocodingDataset = null; // Track the dataset being geocoded
         
         // Initialize map
         map = L.map('map').setView([32.7767, -96.7970], 11);
@@ -354,6 +432,9 @@
             formData.append('file', fileInput.files[0]);
             formData.append('dataset_name', datasetName);
             
+            // Store the dataset name for failed address downloads
+            currentGeocodingDataset = datasetName;
+            
             // Disable upload button
             document.getElementById('uploadBtn').disabled = true;
             document.getElementById('uploadBtn').textContent = 'Uploading...';
@@ -398,6 +479,8 @@
                 clearInterval(progressInterval);
                 progressInterval = null;
             }
+            // Refresh page to show new dataset
+            window.location.reload();
         }
         
         function trackProgress(progressId) {
@@ -424,17 +507,47 @@
                         document.getElementById('currentAddress').textContent = 
                             'Current: ' + (data.current_address || '');
                     } else if (data.status === 'completed') {
+                        var successCount = data.successful_count || 0;
+                        var failedCount = data.failed_count || 0;
+                        var totalCount = data.total || 0;
+                        
                         document.getElementById('progressText').textContent = 'Geocoding completed successfully!';
-                        document.getElementById('currentAddress').textContent = 
-                            'Processed ' + data.total + ' addresses. Refreshing page...';
+                        
+                        var summaryText = `Successfully geocoded: ${successCount}/${totalCount} addresses`;
+                        if (failedCount > 0) {
+                            summaryText += `\nFailed to geocode: ${failedCount} addresses`;
+                        }
+                        
+                        document.getElementById('currentAddress').innerHTML = summaryText.replace('\n', '<br>');
+                        
+                        // Show download failed addresses button if there are failed addresses
+                        if (data.has_failed_addresses && failedCount > 0) {
+                            var downloadFailedBtn = document.getElementById('downloadFailedBtn');
+                            if (!downloadFailedBtn) {
+                                // Create the button if it doesn't exist
+                                downloadFailedBtn = document.createElement('button');
+                                downloadFailedBtn.id = 'downloadFailedBtn';
+                                downloadFailedBtn.className = 'download-failed-btn';
+                                downloadFailedBtn.innerHTML = '📥 Download Failed Addresses';
+                                downloadFailedBtn.onclick = function() {
+                                    downloadFailedAddresses();
+                                };
+                                
+                                // Insert after the current address div
+                                var currentAddressDiv = document.getElementById('currentAddress');
+                                currentAddressDiv.parentNode.insertBefore(downloadFailedBtn, currentAddressDiv.nextSibling);
+                            }
+                            downloadFailedBtn.style.display = 'block';
+                        }
+                        
                         document.getElementById('closeProgressBtn').style.display = 'inline-block';
                         
                         clearInterval(progressInterval);
                         
-                        // Refresh page after 2 seconds
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 2000);
+                        // Remove automatic refresh - let user close manually
+                        // setTimeout(function() {
+                        //     window.location.reload();
+                        // }, 3000);
                     } else if (data.status === 'error') {
                         document.getElementById('progressText').textContent = 'Error occurred during geocoding';
                         document.getElementById('currentAddress').textContent = 'Error: ' + (data.error || 'Unknown error');
@@ -586,6 +699,122 @@
             })
             .catch(error => {
                 alert('Export failed: ' + error.message);
+            });
+        }
+        
+        // Clear All Datasets Function
+        function clearAllDatasets() {
+            if (!confirm('⚠️ Are you sure you want to clear ALL datasets?\n\nThis will permanently delete all uploaded data and cannot be undone!')) {
+                return;
+            }
+            
+            // Double confirmation for safety
+            if (!confirm('This is your final warning!\n\nAll datasets will be permanently deleted. Are you absolutely sure?')) {
+                return;
+            }
+            
+            var clearBtn = document.getElementById('clearAllBtn');
+            clearBtn.disabled = true;
+            clearBtn.textContent = '🗑️ Clearing...';
+            
+            fetch('/clear_all_datasets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('All datasets cleared successfully!', 'success');
+                    // Refresh page after 1 second
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showMessage('Failed to clear datasets: ' + (data.error || 'Unknown error'), 'error');
+                    clearBtn.disabled = false;
+                    clearBtn.textContent = '🗑️ Clear All Datasets';
+                }
+            })
+            .catch(error => {
+                showMessage('Error clearing datasets: ' + error.message, 'error');
+                clearBtn.disabled = false;
+                clearBtn.textContent = '🗑️ Clear All Datasets';
+            });
+        }
+        
+        // Delete Individual Dataset Function
+        function deleteDataset(datasetName, event) {
+            // Prevent the click from bubbling up to the parent div
+            event.stopPropagation();
+            
+            if (!confirm('⚠️ Are you sure you want to delete the dataset "' + datasetName + '"?\n\nThis will permanently delete all data for this dataset and cannot be undone!')) {
+                return;
+            }
+            
+            fetch('/delete_dataset/' + encodeURIComponent(datasetName), {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('Dataset "' + datasetName + '" deleted successfully!', 'success');
+                    // Refresh page after 1 second
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showMessage('Failed to delete dataset: ' + (data.error || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('Error deleting dataset: ' + error.message, 'error');
+            });
+        }
+        
+        // Download Failed Addresses Function
+        function downloadFailedAddresses() {
+            // Use the dataset from current geocoding session, or fall back to session dataset
+            var datasetName = currentGeocodingDataset || '{{ current_dataset }}';
+            
+            if (!datasetName || datasetName === 'None' || datasetName === 'Default') {
+                alert('No dataset selected for downloading failed addresses.');
+                return;
+            }
+            
+            var downloadBtn = document.getElementById('downloadFailedBtn');
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '📥 Downloading...';
+            
+            fetch('/download_failed_addresses/' + encodeURIComponent(datasetName))
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                throw new Error('Download failed: ' + response.statusText);
+            })
+            .then(blob => {
+                var url = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'failed_addresses_' + datasetName + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                // Reset button
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📥 Download Failed Addresses';
+            })
+            .catch(error => {
+                alert('Failed to download failed addresses: ' + error.message);
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📥 Download Failed Addresses';
             });
         }
     </script>

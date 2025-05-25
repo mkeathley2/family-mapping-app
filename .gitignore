@@ -1,5 +1,47 @@
+# Legacy address files
 geocoded_cache.csv
 addresses.csv
+
+# All dataset directories and contents
+datasets/
+datasets/*
+
+# Any CSV files that might contain addresses (except sample)
+*.csv
+!sample_addresses.csv
+
+# Python cache and compiled files
 *.pyc
 __pycache__/
-.env 
+
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+
+# Temporary files
+temp_*
+*.tmp
+
+# Log files
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup 

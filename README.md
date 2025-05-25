@@ -2,6 +2,21 @@
 
 An interactive web application for geocoding family addresses and visualizing them on a map with powerful selection and export tools. Now with dataset management and file upload capabilities!
 
+## 🔒 Privacy & Data Security
+
+**⚠️ IMPORTANT: This repository contains NO real address data!**
+
+- **No Personal Information**: This GitHub repository does not contain any real addresses, family names, or personal information
+- **Sample Data Only**: The included `sample_addresses.csv` contains only fictional example data for demonstration
+- **Your Data Stays Local**: All address data you upload stays on your local machine and is never shared
+- **Git Protection**: The `.gitignore` file ensures that any real address data you import will never be accidentally uploaded to version control
+
+**To use this app with your own data:**
+1. Download/clone this repository
+2. Follow the installation instructions below
+3. Upload your own CSV files through the web interface
+4. Your data will be stored locally in the `datasets/` folder (which is excluded from git)
+
 ## 🆕 What's New in v0.0.2
 
 ### 📤 File Upload & Dataset Management
@@ -93,8 +108,9 @@ An interactive web application for geocoding family addresses and visualizing th
 
 ### 📤 Uploading Your First Dataset
 1. **Prepare your CSV file** with columns like:
-   - Family Name, Address, City, State, Zip
+   - Family Name, Address, City, State, Zip, PeopleID
    - Or similar variations (the app will auto-detect)
+   - **See `sample_addresses.csv`** for an example of the expected format
 
 2. **Upload through the web interface:**
    - Enter a dataset name (e.g., "Smith Family Reunion 2024")
@@ -129,9 +145,10 @@ An interactive web application for geocoding family addresses and visualizing th
 family-mapping-app/
 ├── app.py                 # Flask web application with dataset management
 ├── geocode_addresses.py   # Legacy geocoding script
+├── sample_addresses.csv   # Example CSV format (fictional data)
 ├── templates/
 │   └── map.html          # Enhanced interactive map interface
-├── datasets/             # Directory for uploaded datasets
+├── datasets/             # Directory for uploaded datasets (excluded from git)
 │   ├── dataset1/
 │   │   ├── geocoded_cache.csv
 │   │   └── original.csv
@@ -139,7 +156,7 @@ family-mapping-app/
 │       ├── geocoded_cache.csv
 │       └── original.csv
 ├── requirements.txt      # Python dependencies
-├── .gitignore           # Git ignore rules
+├── .gitignore           # Git ignore rules (protects your data)
 └── README.md            # This file
 ```
 
