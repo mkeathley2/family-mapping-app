@@ -14,10 +14,34 @@ An interactive web application for mapping family addresses with geocoding capab
 - 💾 **Export Options**: Download your geocoded data as CSV files
 - 🔄 **Persistent Storage**: Your data is automatically saved and persists between sessions
 - 🐳 **Docker Ready**: Easy deployment with Docker - no complex setup required
+- 💻 **Standalone Version**: No installation required - just download and run!
 
-## 🚀 Quick Start (Recommended)
+## 🚀 Quick Start (Choose Your Option)
 
-### Option 1: Download & Run (Easiest)
+### Option 1: Standalone Version (Easiest - No Installation Required!) ⭐
+
+**Perfect for non-technical users who just want to run the app immediately**
+
+1. **Download the Standalone Version**:
+   - Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases)
+   - Download `family-mapping-app-standalone-v*.zip`
+   - Extract the zip file to a folder on your computer
+
+2. **Run the App**:
+   - **Double-click** `START_HERE.bat`
+   - Wait for the app to start (may take a moment)
+   - Your web browser will open automatically to the app
+
+3. **Use the App**:
+   - Upload your CSV file with family addresses
+   - See them mapped automatically!
+   - Download results with coordinates
+
+**Requirements**: Windows 10+, Internet connection. That's it! 🎉
+
+### Option 2: Docker Version (For Technical Users)
+
+**Best for developers or users who want the latest features**
 
 1. **Install Docker Desktop**:
    - **Windows/Mac**: Download from [docker.com](https://www.docker.com/products/docker-desktop)
@@ -37,7 +61,7 @@ An interactive web application for mapping family addresses with geocoding capab
    - Go to: http://localhost:8765
    - Start uploading and mapping your addresses! 🎉
 
-### Option 2: Docker Command Line
+### Option 3: Docker Command Line
 
 If you're comfortable with command line:
 
@@ -57,7 +81,7 @@ docker run -d \
 # Open http://localhost:8765 in your browser
 ```
 
-### Option 3: Clone & Build (For Developers)
+### Option 4: Clone & Build (For Developers)
 
 ```bash
 git clone https://github.com/mkeathley2/family-mapping-app.git
@@ -72,6 +96,12 @@ start-app.bat
 
 ## 📋 Requirements
 
+### Standalone Version
+- **Windows 10 or newer**
+- **Internet connection** (for geocoding and map tiles)
+- **4GB RAM** minimum
+
+### Docker Version
 - **Docker Desktop** (Windows/Mac) or **Docker Engine** (Linux)
 - **Web Browser** (Chrome, Firefox, Safari, Edge)
 - **4GB RAM** minimum
@@ -86,10 +116,14 @@ start-app.bat
 
 ## 🔄 Updating the App
 
-### For Option 1 Users:
+### For Standalone Users:
+- Download the new standalone version from releases
+- Extract and run - your data in the `datasets` folder will be preserved
+
+### For Docker Users:
 - Download and run the new start scripts from the latest release
 
-### For Option 2 Users:
+### For Command Line Users:
 ```bash
 docker stop family-mapping-app
 docker rm family-mapping-app
@@ -97,7 +131,7 @@ docker pull mkeathley75028/family-mapping-app:latest
 # Then run the docker run command again
 ```
 
-### For Option 3 Users:
+### For Developers:
 ```bash
 git pull
 # Windows: update-app.bat
@@ -106,7 +140,16 @@ git pull
 
 ## 🛠️ Troubleshooting
 
-### Common Issues:
+### Standalone Version Issues:
+
+**App won't start?**
+- Make sure you're running Windows 10 or newer
+- Try right-clicking `START_HERE.bat` and selecting "Run as administrator"
+
+**Browser doesn't open?**
+- Manually open your web browser and go to: http://localhost:8765
+
+### Docker Version Issues:
 
 **"Docker is not running"**:
 - Make sure Docker Desktop is installed and running
@@ -130,8 +173,8 @@ git pull
 If you encounter any issues:
 
 1. Check the troubleshooting section above
-2. Make sure Docker Desktop is properly installed and running
-3. Try restarting Docker Desktop
+2. Make sure you have the minimum system requirements
+3. Try restarting the app or your computer
 4. [Open an issue](https://github.com/mkeathley2/family-mapping-app/issues) with specific error messages
 
 ## 📄 License
@@ -141,8 +184,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - Built with Flask and Leaflet.js
-- Geocoding powered by multiple services for reliability
+- Geocoding powered by OpenStreetMap's Nominatim service
 - Containerized with Docker for easy deployment
+- Standalone version created with PyInstaller
 
 ---
 

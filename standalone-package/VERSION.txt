@@ -1,0 +1,11 @@
+Family Mapping App - Standalone Version
+Version: v0.0.3-standalone
+Build Date: Sun 05/25/2025 19:26:13.43
+
+This package contains:
+- FamilyMappingApp.exe (Main application)
+- START_HERE.bat (Double-click to run)
+- README.md (Instructions)
+- sample_family_addresses.csv (Example file)
+
+No installation required - just double-click START_HERE.bat!
