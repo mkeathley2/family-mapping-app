@@ -24,7 +24,7 @@ An interactive web application for mapping family addresses with geocoding capab
    - Follow the installation wizard and start Docker Desktop
 
 2. **Download the App**:
-   - Go to [Releases](https://github.com/mkeathley75028/family-mapping-app/releases)
+   - Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases)
    - Download the latest `family-mapping-app-v*.zip` file
    - Extract it to a folder on your computer
 
@@ -60,7 +60,7 @@ docker run -d \
 ### Option 3: Clone & Build (For Developers)
 
 ```bash
-git clone https://github.com/mkeathley75028/family-mapping-app.git
+git clone https://github.com/mkeathley2/family-mapping-app.git
 cd family-mapping-app
 
 # Windows:
@@ -132,7 +132,7 @@ If you encounter any issues:
 1. Check the troubleshooting section above
 2. Make sure Docker Desktop is properly installed and running
 3. Try restarting Docker Desktop
-4. [Open an issue](https://github.com/mkeathley75028/family-mapping-app/issues) with specific error messages
+4. [Open an issue](https://github.com/mkeathley2/family-mapping-app/issues) with specific error messages
 
 ## 📄 License
 
