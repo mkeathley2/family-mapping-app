@@ -8,11 +8,12 @@ Cross-platform support for Windows, macOS, and Linux
 import os
 import sys
 import json
-import csv
 import webbrowser
 import threading
 import time
 import platform
+import math
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -27,9 +28,11 @@ else:
 sys.path.insert(0, application_path)
 
 try:
-    from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
-    import requests
+    from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, session
     from werkzeug.utils import secure_filename
+    import pandas as pd
+    from geopy.geocoders import Nominatim
+    from geopy.extra.rate_limiter import RateLimiter
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Please make sure all dependencies are installed.")
@@ -45,222 +48,476 @@ app.secret_key = 'family-mapping-standalone-key'
 # Configuration
 UPLOAD_FOLDER = os.path.join(application_path, 'datasets')
 ALLOWED_EXTENSIONS = {'csv'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+COLUMNS = ['Family Name', 'Address', 'City', 'State', 'Zip', 'PeopleID']
 
-# Ensure datasets directory exists
+# Ensure upload folder exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Global progress tracking
+geocoding_progress = {}
+geocoding_cancel_flags = {}  # Track cancellation requests
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def geocode_address(address):
-    """Simple geocoding using Nominatim (OpenStreetMap)"""
-    try:
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {
-            'q': address,
-            'format': 'json',
-            'limit': 1,
-            'addressdetails': 1
-        }
-        headers = {
-            'User-Agent': 'FamilyMappingApp/1.0'
-        }
-        
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        data = response.json()
-        if data:
-            result = data[0]
-            return {
-                'lat': float(result['lat']),
-                'lon': float(result['lon']),
-                'display_name': result.get('display_name', address)
-            }
-    except Exception as e:
-        print(f"Geocoding error for {address}: {e}")
+def get_datasets():
+    """Get list of all available datasets"""
+    datasets = []
+    if os.path.exists(UPLOAD_FOLDER):
+        try:
+            for item in os.listdir(UPLOAD_FOLDER):
+                dataset_path = os.path.join(UPLOAD_FOLDER, item)
+                if os.path.isdir(dataset_path):
+                    cache_file = os.path.join(dataset_path, 'geocoded_cache.csv')
+                    if os.path.exists(cache_file):
+                        # Check if file is not empty/corrupted
+                        if os.path.getsize(cache_file) < 10:
+                            print(f"Warning: Skipping corrupted dataset {item} (cache file too small)")
+                            continue
+                            
+                        # Get file modification time
+                        mod_time = datetime.fromtimestamp(os.path.getmtime(cache_file))
+                        # Count addresses
+                        try:
+                            df = pd.read_csv(cache_file)
+                            count = len(df)
+                        except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+                            print(f"Warning: Skipping corrupted dataset {item}: {str(e)}")
+                            continue
+                        except Exception as e:
+                            print(f"Warning: Error reading dataset {item}: {str(e)}")
+                            count = 0
+                            
+                        datasets.append({
+                            'name': item,
+                            'path': dataset_path,
+                            'last_modified': mod_time.strftime('%Y-%m-%d %H:%M'),
+                            'address_count': count
+                        })
+        except (PermissionError, OSError) as e:
+            print(f"Warning: Cannot access datasets directory: {str(e)}")
+            # Recreate the directory if it doesn't exist or has permission issues
+            try:
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            except Exception as create_error:
+                print(f"Error recreating datasets directory: {str(create_error)}")
+    else:
+        # Create the directory if it doesn't exist
+        try:
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        except Exception as create_error:
+            print(f"Error creating datasets directory: {str(create_error)}")
     
-    return None
+    return sorted(datasets, key=lambda x: x['last_modified'], reverse=True)
+
+def load_valid_addresses(dataset_name=None):
+    """Load addresses from a specific dataset or default"""
+    if dataset_name:
+        cache_file = os.path.join(UPLOAD_FOLDER, dataset_name, 'geocoded_cache.csv')
+    else:
+        cache_file = 'geocoded_cache.csv'  # Default legacy file
+    
+    if not os.path.exists(cache_file):
+        return pd.DataFrame()
+    
+    # Check if file is empty or too small
+    if os.path.getsize(cache_file) < 10:  # Less than 10 bytes is likely empty/corrupted
+        print(f"Warning: {cache_file} is empty or corrupted (size: {os.path.getsize(cache_file)} bytes)")
+        return pd.DataFrame()
+    
+    try:
+        df = pd.read_csv(cache_file)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError) as e:
+        print(f"Error reading {cache_file}: {str(e)}")
+        return pd.DataFrame()
+    
+    # Check if DataFrame is empty or missing required columns
+    if df.empty or 'Latitude' not in df.columns or 'Longitude' not in df.columns:
+        return pd.DataFrame()
+    
+    # Filter out rows with missing or invalid lat/lon
+    df = df.dropna(subset=['Latitude', 'Longitude'])
+    df = df[(df['Latitude'].apply(lambda x: isinstance(x, (int, float)) or str(x).replace('.', '', 1).isdigit())) &
+            (df['Longitude'].apply(lambda x: isinstance(x, (int, float)) or str(x).replace('.', '', 1).isdigit()))]
+    df['Latitude'] = df['Latitude'].astype(float)
+    df['Longitude'] = df['Longitude'].astype(float)
+    return df
+
+def geocode_dataset(dataset_name, csv_file_path, progress_id):
+    """Geocode a dataset in the background"""
+    try:
+        # Initialize progress
+        geocoding_progress[progress_id] = {
+            'status': 'starting',
+            'progress': 0,
+            'total': 0,
+            'current_address': '',
+            'completed': False,
+            'error': None
+        }
+        
+        # Create dataset directory
+        dataset_path = os.path.join(UPLOAD_FOLDER, dataset_name)
+        os.makedirs(dataset_path, exist_ok=True)
+        
+        # Read the uploaded CSV
+        print(f"Reading CSV file: {csv_file_path}")
+        raw_df = pd.read_csv(csv_file_path)
+        print(f"Raw CSV has {len(raw_df)} rows and columns: {list(raw_df.columns)}")
+        
+        # Check if the first row contains data instead of headers
+        # This happens when CSV doesn't have proper column names
+        first_row_values = raw_df.iloc[0].tolist() if len(raw_df) > 0 else []
+        columns_look_like_data = any(
+            str(val).strip() and (
+                any(char.isdigit() for char in str(val)) or  # Contains numbers
+                len(str(val).split()) > 1 or  # Multiple words
+                str(val).lower() in ['tx', 'ca', 'ny', 'fl']  # State abbreviations
+            ) for val in first_row_values[:5]  # Check first 5 columns
+        )
+        
+        if columns_look_like_data:
+            print("Detected that first row contains data, not headers. Using positional mapping.")
+            # Read again without treating first row as headers
+            raw_df = pd.read_csv(csv_file_path, header=None)
+            print(f"Re-read CSV without headers: {len(raw_df)} rows and {len(raw_df.columns)} columns")
+            
+            # Use positional mapping for CSV without headers
+            df = pd.DataFrame()
+            df['Family Name'] = raw_df.iloc[:, 0] if len(raw_df.columns) > 0 else ''
+            df['Address'] = raw_df.iloc[:, 1] if len(raw_df.columns) > 1 else ''
+            df['City'] = raw_df.iloc[:, 3] if len(raw_df.columns) > 3 else ''
+            df['State'] = raw_df.iloc[:, 4] if len(raw_df.columns) > 4 else ''
+            df['Zip'] = raw_df.iloc[:, 5] if len(raw_df.columns) > 5 else ''
+            df['PeopleID'] = raw_df.iloc[:, 6] if len(raw_df.columns) > 6 else ''
+            print("Using positional mapping (no headers)")
+        else:
+            # Try to map columns automatically using column names
+            df_columns = raw_df.columns.tolist()
+            column_mapping = {}
+            
+            # More robust column mapping logic for files with headers
+            for i, col in enumerate(df_columns):
+                col_lower = str(col).lower()
+                if i == 0 or 'family' in col_lower or ('name' in col_lower and 'file' not in col_lower):
+                    column_mapping['Family Name'] = col
+                elif i == 1 or ('address' in col_lower and 'email' not in col_lower):
+                    column_mapping['Address'] = col
+                elif i == 3 or 'city' in col_lower:
+                    column_mapping['City'] = col
+                elif i == 4 or 'state' in col_lower:
+                    column_mapping['State'] = col
+                elif i == 5 or 'zip' in col_lower or 'postal' in col_lower:
+                    column_mapping['Zip'] = col
+                elif i == 6 or 'people' in col_lower or 'id' in col_lower:
+                    column_mapping['PeopleID'] = col
+            
+            # Create mapped DataFrame
+            df = pd.DataFrame()
+            df['Family Name'] = raw_df[column_mapping.get('Family Name', raw_df.columns[0])] if column_mapping.get('Family Name') or len(raw_df.columns) > 0 else ''
+            df['Address'] = raw_df[column_mapping.get('Address', raw_df.columns[1] if len(raw_df.columns) > 1 else raw_df.columns[0])]
+            df['City'] = raw_df[column_mapping.get('City', raw_df.columns[3] if len(raw_df.columns) > 3 else '')] if column_mapping.get('City') or len(raw_df.columns) > 3 else ''
+            df['State'] = raw_df[column_mapping.get('State', raw_df.columns[4] if len(raw_df.columns) > 4 else '')] if column_mapping.get('State') or len(raw_df.columns) > 4 else ''
+            df['Zip'] = raw_df[column_mapping.get('Zip', raw_df.columns[5] if len(raw_df.columns) > 5 else '')] if column_mapping.get('Zip') or len(raw_df.columns) > 5 else ''
+            df['PeopleID'] = raw_df[column_mapping.get('PeopleID', raw_df.columns[6] if len(raw_df.columns) > 6 else '')] if column_mapping.get('PeopleID') or len(raw_df.columns) > 6 else ''
+            print(f"Using column mapping: {column_mapping}")
+        
+        # Clean and validate data
+        df = df.fillna('')
+        df = df.astype(str)
+        
+        # Filter out rows without addresses
+        df = df[df['Address'].str.strip() != '']
+        
+        if len(df) == 0:
+            geocoding_progress[progress_id]['error'] = 'No valid addresses found in the CSV file'
+            geocoding_progress[progress_id]['status'] = 'error'
+            return
+        
+        geocoding_progress[progress_id]['total'] = len(df)
+        geocoding_progress[progress_id]['status'] = 'geocoding'
+        
+        # Initialize geocoder
+        geolocator = Nominatim(user_agent="FamilyMappingApp/1.0")
+        geocode = RateLimiter(geolocator.geocode, min_delay_seconds=1)
+        
+        geocoded_data = []
+        failed_addresses = []
+        
+        for index, row in df.iterrows():
+            # Check for cancellation
+            if geocoding_cancel_flags.get(progress_id, False):
+                print(f"Geocoding cancelled for progress_id: {progress_id}")
+                geocoding_progress[progress_id]['status'] = 'cancelled'
+                return
+            
+            # Build full address
+            address_parts = [row['Address']]
+            if row['City']:
+                address_parts.append(row['City'])
+            if row['State']:
+                address_parts.append(row['State'])
+            if row['Zip']:
+                address_parts.append(row['Zip'])
+            
+            full_address = ', '.join(address_parts)
+            
+            # Update progress
+            geocoding_progress[progress_id]['progress'] = index + 1
+            geocoding_progress[progress_id]['current_address'] = full_address
+            
+            print(f"Geocoding {index + 1}/{len(df)}: {full_address}")
+            
+            try:
+                location = geocode(full_address)
+                if location:
+                    geocoded_data.append({
+                        'Family Name': row['Family Name'],
+                        'Address': row['Address'],
+                        'City': row['City'],
+                        'State': row['State'],
+                        'Zip': row['Zip'],
+                        'PeopleID': row['PeopleID'],
+                        'Latitude': location.latitude,
+                        'Longitude': location.longitude,
+                        'Full Address': full_address
+                    })
+                else:
+                    failed_addresses.append({
+                        'Family Name': row['Family Name'],
+                        'Address': row['Address'],
+                        'City': row['City'],
+                        'State': row['State'],
+                        'Zip': row['Zip'],
+                        'PeopleID': row['PeopleID'],
+                        'Full Address': full_address,
+                        'Error': 'No location found'
+                    })
+            except Exception as e:
+                print(f"Error geocoding {full_address}: {str(e)}")
+                failed_addresses.append({
+                    'Family Name': row['Family Name'],
+                    'Address': row['Address'],
+                    'City': row['City'],
+                    'State': row['State'],
+                    'Zip': row['Zip'],
+                    'PeopleID': row['PeopleID'],
+                    'Full Address': full_address,
+                    'Error': str(e)
+                })
+        
+        # Save results
+        if geocoded_data:
+            geocoded_df = pd.DataFrame(geocoded_data)
+            cache_file = os.path.join(dataset_path, 'geocoded_cache.csv')
+            geocoded_df.to_csv(cache_file, index=False)
+        
+        if failed_addresses:
+            failed_df = pd.DataFrame(failed_addresses)
+            failed_file = os.path.join(dataset_path, 'failed_addresses.csv')
+            failed_df.to_csv(failed_file, index=False)
+        
+        # Update final progress
+        geocoding_progress[progress_id]['status'] = 'completed'
+        geocoding_progress[progress_id]['completed'] = True
+        geocoding_progress[progress_id]['successful_count'] = len(geocoded_data)
+        geocoding_progress[progress_id]['failed_count'] = len(failed_addresses)
+        
+        print(f"Geocoding completed: {len(geocoded_data)} successful, {len(failed_addresses)} failed")
+        
+    except Exception as e:
+        print(f"Error in geocode_dataset: {str(e)}")
+        geocoding_progress[progress_id]['error'] = str(e)
+        geocoding_progress[progress_id]['status'] = 'error'
 
 @app.route('/')
 def index():
-    return render_template('map_standalone.html')
+    """Main page - exactly like original app.py"""
+    datasets = get_datasets()
+    current_dataset = session.get('current_dataset')
+    
+    # Load addresses for current dataset
+    addresses = load_valid_addresses(current_dataset)
+    
+    return render_template('map.html', 
+                         datasets=datasets, 
+                         current_dataset=current_dataset,
+                         addresses=addresses.to_dict('records') if not addresses.empty else [])
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    """Handle file upload - exactly like original app.py"""
     try:
         if 'file' not in request.files:
-            return jsonify({'error': 'No file selected'}), 400
+            return jsonify({'error': 'No file part'}), 400
         
         file = request.files['file']
+        dataset_name = request.form.get('dataset_name', '').strip()
+        
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
         
+        if not dataset_name:
+            return jsonify({'error': 'Dataset name is required'}), 400
+        
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_{filename}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
             
-            # Process the CSV file
-            addresses = []
-            try:
-                with open(filepath, 'r', encoding='utf-8') as csvfile:
-                    # Try to detect delimiter
-                    sample = csvfile.read(1024)
-                    csvfile.seek(0)
-                    sniffer = csv.Sniffer()
-                    delimiter = sniffer.sniff(sample).delimiter
-                    
-                    reader = csv.DictReader(csvfile, delimiter=delimiter)
-                    for row in reader:
-                        # Look for address-like columns
-                        address_fields = ['address', 'Address', 'ADDRESS', 'location', 'Location']
-                        name_fields = ['name', 'Name', 'NAME', 'family', 'Family']
-                        
-                        address = None
-                        name = None
-                        
-                        for field in address_fields:
-                            if field in row and row[field].strip():
-                                address = row[field].strip()
-                                break
-                        
-                        for field in name_fields:
-                            if field in row and row[field].strip():
-                                name = row[field].strip()
-                                break
-                        
-                        if address:
-                            addresses.append({
-                                'name': name or 'Unknown',
-                                'address': address,
-                                'original_row': row
-                            })
+            # Create temporary file path
+            temp_path = os.path.join(UPLOAD_FOLDER, f"temp_{filename}")
+            file.save(temp_path)
             
-            except Exception as e:
-                return jsonify({'error': f'Error reading CSV file: {str(e)}'}), 400
+            # Generate progress ID
+            progress_id = str(uuid.uuid4())
             
-            if not addresses:
-                return jsonify({'error': 'No valid addresses found in the CSV file. Make sure you have an "address" column.'}), 400
+            # Start geocoding in background thread
+            thread = threading.Thread(
+                target=geocode_dataset,
+                args=(dataset_name, temp_path, progress_id)
+            )
+            thread.daemon = True
+            thread.start()
             
-            return jsonify({
-                'message': f'Successfully uploaded {len(addresses)} addresses',
-                'filename': filename,
-                'addresses': addresses[:10]  # Return first 10 for preview
-            })
+            return jsonify({'progress_id': progress_id})
         
         return jsonify({'error': 'Invalid file type. Please upload a CSV file.'}), 400
     
     except Exception as e:
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
-@app.route('/geocode/<filename>')
-def geocode_file(filename):
+@app.route('/progress/<progress_id>')
+def get_progress(progress_id):
+    """Get geocoding progress"""
+    return jsonify(geocoding_progress.get(progress_id, {'status': 'not_found'}))
+
+@app.route('/cancel_geocoding/<progress_id>', methods=['POST'])
+def cancel_geocoding(progress_id):
+    """Cancel ongoing geocoding"""
     try:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if not os.path.exists(filepath):
-            return jsonify({'error': 'File not found'}), 404
+        data = request.get_json()
+        dataset_name = data.get('dataset_name')
         
-        # Read and geocode addresses
-        geocoded_data = []
-        with open(filepath, 'r', encoding='utf-8') as csvfile:
-            sample = csvfile.read(1024)
-            csvfile.seek(0)
-            sniffer = csv.Sniffer()
-            delimiter = sniffer.sniff(sample).delimiter
-            
-            reader = csv.DictReader(csvfile, delimiter=delimiter)
-            for i, row in enumerate(reader):
-                # Look for address column
-                address_fields = ['address', 'Address', 'ADDRESS', 'location', 'Location']
-                name_fields = ['name', 'Name', 'NAME', 'family', 'Family']
-                
-                address = None
-                name = None
-                
-                for field in address_fields:
-                    if field in row and row[field].strip():
-                        address = row[field].strip()
-                        break
-                
-                for field in name_fields:
-                    if field in row and row[field].strip():
-                        name = row[field].strip()
-                        break
-                
-                if address:
-                    print(f"Geocoding {i+1}: {address}")
-                    geo_result = geocode_address(address)
-                    
-                    if geo_result:
-                        geocoded_data.append({
-                            'name': name or f'Location {i+1}',
-                            'address': address,
-                            'lat': geo_result['lat'],
-                            'lon': geo_result['lon'],
-                            'display_name': geo_result['display_name']
-                        })
-                    else:
-                        geocoded_data.append({
-                            'name': name or f'Location {i+1}',
-                            'address': address,
-                            'lat': None,
-                            'lon': None,
-                            'display_name': address,
-                            'error': 'Could not geocode'
-                        })
-                    
-                    # Small delay to be respectful to the geocoding service
-                    time.sleep(1)
+        if not dataset_name:
+            return jsonify({'error': 'Dataset name required'}), 400
         
-        # Save geocoded results
-        output_filename = f"geocoded_{filename}"
-        output_filepath = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+        # Set cancellation flag
+        geocoding_cancel_flags[progress_id] = True
         
-        with open(output_filepath, 'w', newline='', encoding='utf-8') as csvfile:
-            fieldnames = ['name', 'address', 'lat', 'lon', 'display_name', 'error']
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in geocoded_data:
-                writer.writerow(row)
+        # Clean up dataset directory
+        dataset_path = os.path.join(UPLOAD_FOLDER, dataset_name)
+        if os.path.exists(dataset_path):
+            import shutil
+            try:
+                shutil.rmtree(dataset_path)
+                print(f"Deleted dataset directory: {dataset_path}")
+            except Exception as e:
+                print(f"Error deleting dataset directory: {str(e)}")
         
-        return jsonify({
-            'geocoded_data': geocoded_data,
-            'output_filename': output_filename
-        })
+        # Clean up progress tracking
+        if progress_id in geocoding_progress:
+            del geocoding_progress[progress_id]
+        if progress_id in geocoding_cancel_flags:
+            del geocoding_cancel_flags[progress_id]
+        
+        return jsonify({'success': True})
     
     except Exception as e:
-        return jsonify({'error': f'Geocoding failed: {str(e)}'}), 500
+        return jsonify({'error': str(e)}), 500
 
-@app.route('/download/<filename>')
-def download_file(filename):
+@app.route('/download_failed_addresses/<dataset_name>')
+def download_failed_addresses(dataset_name):
+    """Download failed addresses CSV"""
     try:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        if os.path.exists(filepath):
-            return send_file(filepath, as_attachment=True)
-        return jsonify({'error': 'File not found'}), 404
+        failed_file = os.path.join(UPLOAD_FOLDER, dataset_name, 'failed_addresses.csv')
+        if os.path.exists(failed_file):
+            return send_file(failed_file, as_attachment=True, 
+                           download_name=f'{dataset_name}_failed_addresses.csv')
+        else:
+            return jsonify({'error': 'No failed addresses file found'}), 404
     except Exception as e:
         return jsonify({'error': f'Download failed: {str(e)}'}), 500
 
-@app.route('/files')
-def list_files():
+@app.route('/switch_dataset/<dataset_name>')
+def switch_dataset(dataset_name):
+    """Switch to a different dataset"""
+    session['current_dataset'] = dataset_name
+    return redirect(url_for('index'))
+
+@app.route('/clear_all_datasets', methods=['POST'])
+def clear_all_datasets():
+    """Clear all datasets"""
     try:
-        files = []
-        for filename in os.listdir(app.config['UPLOAD_FOLDER']):
-            if filename.endswith('.csv'):
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                stat = os.stat(filepath)
-                files.append({
-                    'name': filename,
-                    'size': stat.st_size,
-                    'modified': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
-                })
-        return jsonify(files)
+        import shutil
+        if os.path.exists(UPLOAD_FOLDER):
+            shutil.rmtree(UPLOAD_FOLDER)
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        session.pop('current_dataset', None)
+        return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'error': f'Failed to list files: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to clear datasets: {str(e)}'}), 500
+
+@app.route('/delete_dataset/<dataset_name>', methods=['DELETE'])
+def delete_dataset(dataset_name):
+    """Delete a specific dataset"""
+    try:
+        import shutil
+        dataset_path = os.path.join(UPLOAD_FOLDER, dataset_name)
+        if os.path.exists(dataset_path):
+            shutil.rmtree(dataset_path)
+        
+        # Clear session if this was the current dataset
+        if session.get('current_dataset') == dataset_name:
+            session.pop('current_dataset', None)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete dataset: {str(e)}'}), 500
+
+@app.route('/export_csv', methods=['POST'])
+def export_csv():
+    """Export selected addresses as CSV"""
+    try:
+        data = request.get_json()
+        selected_addresses = data.get('addresses', [])
+        
+        if not selected_addresses:
+            return jsonify({'error': 'No addresses selected'}), 400
+        
+        # Create DataFrame from selected addresses
+        df = pd.DataFrame(selected_addresses)
+        
+        # Calculate distances if center point provided
+        center_lat = data.get('center_lat')
+        center_lon = data.get('center_lon')
+        
+        if center_lat is not None and center_lon is not None:
+            def haversine(lat1, lon1, lat2, lon2):
+                R = 3959  # Earth's radius in miles
+                lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+                dlat = lat2 - lat1
+                dlon = lon2 - lon1
+                a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+                c = 2 * math.asin(math.sqrt(a))
+                return R * c
+            
+            df['Distance_Miles'] = df.apply(
+                lambda row: haversine(center_lat, center_lon, row['Latitude'], row['Longitude']),
+                axis=1
+            )
+            df = df.sort_values('Distance_Miles')
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"family_addresses_export_{timestamp}.csv"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        
+        # Save CSV
+        df.to_csv(filepath, index=False)
+        
+        return send_file(filepath, as_attachment=True, download_name=filename)
+    
+    except Exception as e:
+        return jsonify({'error': f'Export failed: {str(e)}'}), 500
 
 def open_browser():
     """Open the default web browser to the app"""

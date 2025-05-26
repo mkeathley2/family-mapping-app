@@ -1,318 +1,302 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8" />
+    <title>Family Mapping App - Standalone</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Family Mapping App</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 300;
-        }
-
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-
-        .content {
-            padding: 30px;
-        }
-
-        .upload-section {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 25px;
-            margin-bottom: 30px;
-            border: 2px dashed #dee2e6;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .upload-section:hover {
-            border-color: #4facfe;
-            background: #f0f8ff;
-        }
-
-        .upload-section h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.3em;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-            margin: 15px 0;
-        }
-
-        .file-input {
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        
+        /* Header Panel */
+        .header-panel {
             position: absolute;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-
-        .file-input-button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 30px;
-            border-radius: 25px;
-            border: none;
-            cursor: pointer;
-            font-size: 1em;
-            transition: all 0.3s ease;
-            display: inline-block;
-        }
-
-        .file-input-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-        .upload-button {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 12px 30px;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 1em;
-            margin-left: 15px;
-            transition: all 0.3s ease;
-        }
-
-        .upload-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-        .upload-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .map-container {
-            height: 500px;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-
-        .status {
-            padding: 15px;
+            top: 80px;
+            left: 10px;
+            z-index: 1000;
+            background-color: rgba(255,255,255,0.95);
+            border: 1px solid #ccc;
             border-radius: 8px;
-            margin: 15px 0;
-            font-weight: 500;
+            padding: 15px;
+            max-width: 350px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-
+        
+        .header-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        /* Upload Section */
+        .upload-section {
+            margin-bottom: 15px;
+        }
+        
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .upload-form input[type="file"] {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .upload-btn {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .upload-btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .upload-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Status Messages */
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
         .status.success {
-            background: #d4edda;
+            background-color: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-
+        
         .status.error {
-            background: #f8d7da;
+            background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-
+        
         .status.info {
-            background: #d1ecf1;
+            background-color: #d1ecf1;
             color: #0c5460;
             border: 1px solid #bee5eb;
         }
-
+        
+        /* Loading */
         .loading {
             text-align: center;
-            padding: 20px;
+            padding: 15px;
         }
-
+        
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4facfe;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
+            margin: 0 auto 10px;
         }
-
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        .file-info {
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-        }
-
+        
+        /* Download Section */
         .download-section {
-            text-align: center;
-            margin-top: 20px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
         }
-
-        .download-button {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        
+        .download-btn {
+            padding: 8px 16px;
+            background-color: #28a745;
             color: white;
-            padding: 12px 30px;
             border: none;
-            border-radius: 25px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 14px;
             text-decoration: none;
             display: inline-block;
-            transition: all 0.3s ease;
         }
-
-        .download-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        
+        .download-btn:hover {
+            background-color: #218838;
         }
-
-        .instructions {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-radius: 0 8px 8px 0;
+        
+        /* Files List */
+        .files-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
         }
-
-        .instructions h4 {
-            color: #1976d2;
-            margin-bottom: 10px;
+        
+        .file-item {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px 0;
+            background-color: #f8f9fa;
+            font-size: 12px;
         }
-
-        .instructions ul {
-            margin-left: 20px;
+        
+        .file-name {
+            font-weight: bold;
+            color: #333;
         }
-
-        .instructions li {
-            margin-bottom: 5px;
-            color: #424242;
+        
+        .file-details {
+            color: #666;
+            margin-top: 2px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🗺️ Family Mapping App</h1>
-            <p>Upload your family addresses and see them on an interactive map</p>
+    <div id="map"></div>
+    
+    <div class="header-panel">
+        <h3>Family Mapping App - Standalone</h3>
+        
+        <div class="upload-section">
+            <form id="uploadForm" class="upload-form">
+                <input type="file" id="csvFile" accept=".csv" required>
+                <button type="submit" id="uploadBtn" class="upload-btn">Upload & Geocode CSV</button>
+            </form>
         </div>
         
-        <div class="content">
-            <div class="instructions">
-                <h4>📋 How to use:</h4>
-                <ul>
-                    <li>Create a CSV file with your family addresses</li>
-                    <li>Make sure you have columns named "address" and "name" (or "family")</li>
-                    <li>Upload the file using the button below</li>
-                    <li>Click "Geocode & Map" to see your addresses on the map</li>
-                    <li>Download the results with coordinates included</li>
-                </ul>
-            </div>
-
-            <div class="upload-section">
-                <h3>📁 Upload Your CSV File</h3>
-                <p>Select a CSV file containing family addresses</p>
-                
-                <div class="file-input-wrapper">
-                    <input type="file" id="csvFile" class="file-input" accept=".csv" />
-                    <label for="csvFile" class="file-input-button">Choose CSV File</label>
-                </div>
-                
-                <button id="uploadBtn" class="upload-button" disabled>Upload & Process</button>
-                
-                <div id="fileInfo" class="file-info" style="display: none;"></div>
-            </div>
-
-            <div id="status"></div>
-            
-            <div id="mapContainer" class="map-container" style="display: none;"></div>
-            
-            <div id="downloadSection" class="download-section" style="display: none;">
-                <a id="downloadBtn" class="download-button" href="#" download>📥 Download Results</a>
-            </div>
+        <div id="statusMessage"></div>
+        
+        <div id="downloadSection" class="download-section" style="display: none;">
+            <a id="downloadLink" href="#" class="download-btn">Download Geocoded Results</a>
+        </div>
+        
+        <div class="files-section">
+            <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #333;">Recent Files:</h4>
+            <div id="filesList"></div>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         let map;
-        let currentFile = null;
-        let geocodedData = null;
+        let markers = [];
+        let currentGeocodedFile = null;
 
-        // File input handling
-        document.getElementById('csvFile').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            const uploadBtn = document.getElementById('uploadBtn');
-            const fileInfo = document.getElementById('fileInfo');
+        // Initialize map centered on Dallas, TX (matching original app)
+        map = L.map('map').setView([32.7767, -96.7970], 11);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // Show loading spinner
+        function showLoading(message) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>${message}</div>
+                </div>
+            `;
+        }
+
+        // Clear all markers from map
+        function clearMarkers() {
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+        }
+
+        // Add markers to map
+        function addMarkers(geocodedData) {
+            clearMarkers();
             
-            if (file) {
-                currentFile = file;
-                uploadBtn.disabled = false;
-                
-                fileInfo.innerHTML = `
-                    <strong>Selected file:</strong> ${file.name}<br>
-                    <strong>Size:</strong> ${(file.size / 1024).toFixed(1)} KB<br>
-                    <strong>Type:</strong> ${file.type || 'CSV'}
-                `;
-                fileInfo.style.display = 'block';
-            } else {
-                currentFile = null;
-                uploadBtn.disabled = true;
-                fileInfo.style.display = 'none';
+            geocodedData.forEach(item => {
+                if (item.Latitude && item.Longitude) {
+                    const marker = L.marker([item.Latitude, item.Longitude])
+                        .bindPopup(`
+                            <strong>${item['Family Name'] || 'Unknown'}</strong><br>
+                            ${item.Address || ''}<br>
+                            ${item.City || ''}, ${item.State || ''} ${item.Zip || ''}
+                        `)
+                        .addTo(map);
+                    markers.push(marker);
+                }
+            });
+            
+            // Fit map to show all markers if we have any
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
             }
-        });
+        }
 
-        // Upload button handling
-        document.getElementById('uploadBtn').addEventListener('click', function() {
-            if (!currentFile) return;
+        // Load and display recent files
+        function loadFiles() {
+            fetch('/files')
+                .then(response => response.json())
+                .then(files => {
+                    const filesList = document.getElementById('filesList');
+                    if (files.length === 0) {
+                        filesList.innerHTML = '<div class="file-item">No files uploaded yet</div>';
+                        return;
+                    }
+                    
+                    filesList.innerHTML = files.slice(0, 5).map(file => `
+                        <div class="file-item">
+                            <div class="file-name">${file.name}</div>
+                            <div class="file-details">
+                                Size: ${(file.size / 1024).toFixed(1)} KB | 
+                                Modified: ${file.modified}
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => {
+                    console.error('Error loading files:', error);
+                });
+        }
+
+        // Handle file upload
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('Please select a CSV file', 'error');
+                return;
+            }
             
             const formData = new FormData();
-            formData.append('file', currentFile);
+            formData.append('file', file);
             
-            showStatus('Uploading file...', 'info');
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
             
+            showLoading('Uploading and processing CSV file...');
+            
+            // Upload file
             fetch('/upload', {
                 method: 'POST',
                 body: formData
@@ -320,92 +304,59 @@
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    showStatus(`Error: ${data.error}`, 'error');
-                } else {
-                    showStatus(data.message, 'success');
-                    startGeocoding(data.filename);
+                    showStatus(data.error, 'error');
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Upload & Geocode CSV';
+                    return;
                 }
+                
+                showStatus(data.message, 'success');
+                
+                // Start geocoding
+                showLoading('Geocoding addresses... This may take a few minutes.');
+                
+                return fetch(`/geocode/${data.filename}`);
             })
-            .catch(error => {
-                showStatus(`Upload failed: ${error.message}`, 'error');
-            });
-        });
-
-        function startGeocoding(filename) {
-            showStatus('Geocoding addresses... This may take a few minutes.', 'info');
-            
-            fetch(`/geocode/${filename}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
-                    showStatus(`Geocoding error: ${data.error}`, 'error');
-                } else {
-                    geocodedData = data.geocoded_data;
-                    showStatus(`Successfully geocoded ${geocodedData.length} addresses!`, 'success');
-                    displayMap(geocodedData);
-                    setupDownload(data.output_filename);
+                    showStatus(data.error, 'error');
+                    return;
                 }
+                
+                // Display results on map
+                addMarkers(data.geocoded_data);
+                
+                // Show download link
+                currentGeocodedFile = data.output_filename;
+                const downloadSection = document.getElementById('downloadSection');
+                const downloadLink = document.getElementById('downloadLink');
+                downloadLink.href = `/download/${data.output_filename}`;
+                downloadSection.style.display = 'block';
+                
+                const successCount = data.geocoded_data.filter(item => item.Latitude && item.Longitude).length;
+                const totalCount = data.geocoded_data.length;
+                
+                showStatus(
+                    `Geocoding complete! Successfully geocoded ${successCount} of ${totalCount} addresses.`,
+                    'success'
+                );
+                
+                // Refresh files list
+                loadFiles();
             })
             .catch(error => {
-                showStatus(`Geocoding failed: ${error.message}`, 'error');
+                showStatus(`Error: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload & Geocode CSV';
+                fileInput.value = ''; // Clear file input
             });
-        }
+        });
 
-        function displayMap(data) {
-            const mapContainer = document.getElementById('mapContainer');
-            mapContainer.style.display = 'block';
-            mapContainer.innerHTML = '';
-            
-            // Initialize map
-            map = L.map('mapContainer').setView([39.8283, -98.5795], 4); // Center of US
-            
-            // Add tile layer
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(map);
-            
-            // Add markers
-            const validLocations = data.filter(item => item.lat && item.lon);
-            
-            if (validLocations.length > 0) {
-                const group = new L.featureGroup();
-                
-                validLocations.forEach(item => {
-                    const marker = L.marker([item.lat, item.lon])
-                        .bindPopup(`
-                            <strong>${item.name}</strong><br>
-                            ${item.address}<br>
-                            <small>${item.display_name}</small>
-                        `);
-                    
-                    marker.addTo(map);
-                    group.addLayer(marker);
-                });
-                
-                // Fit map to show all markers
-                map.fitBounds(group.getBounds().pad(0.1));
-            }
-            
-            // Show summary
-            const failed = data.filter(item => !item.lat || !item.lon).length;
-            if (failed > 0) {
-                showStatus(`Mapped ${validLocations.length} addresses successfully. ${failed} addresses could not be geocoded.`, 'info');
-            }
-        }
-
-        function setupDownload(filename) {
-            const downloadSection = document.getElementById('downloadSection');
-            const downloadBtn = document.getElementById('downloadBtn');
-            
-            downloadBtn.href = `/download/${filename}`;
-            downloadBtn.download = filename;
-            downloadSection.style.display = 'block';
-        }
-
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
-        }
+        // Load files on page load
+        loadFiles();
     </script>
 </body>
 </html> 
