@@ -46,7 +46,7 @@ jobs:
         powershell -Command "Compress-Archive -Path 'standalone-package-windows\*' -DestinationPath 'family-mapping-app-standalone-windows-${{ github.event.inputs.version || github.ref_name }}.zip' -Force"
     
     - name: Upload Windows artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: windows-standalone
         path: family-mapping-app-standalone-windows-*.zip
@@ -88,7 +88,7 @@ jobs:
         zip -r family-mapping-app-standalone-macos-${{ github.event.inputs.version || github.ref_name }}.zip standalone-package-macos/
     
     - name: Upload macOS artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: macos-standalone
         path: family-mapping-app-standalone-macos-*.zip
@@ -130,7 +130,7 @@ jobs:
         tar -czf family-mapping-app-standalone-linux-${{ github.event.inputs.version || github.ref_name }}.tar.gz standalone-package-linux/
     
     - name: Upload Linux artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: linux-standalone
         path: family-mapping-app-standalone-linux-*.tar.gz
@@ -141,7 +141,7 @@ jobs:
     if: github.event_name == 'release'
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
     
     - name: Upload Windows release asset
       uses: actions/upload-release-asset@v1
