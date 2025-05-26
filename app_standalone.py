@@ -322,6 +322,7 @@ def geocode_dataset(dataset_name, csv_file_path, progress_id):
         geocoding_progress[progress_id]['completed'] = True
         geocoding_progress[progress_id]['successful_count'] = len(geocoded_data)
         geocoding_progress[progress_id]['failed_count'] = len(failed_addresses)
+        geocoding_progress[progress_id]['has_failed_addresses'] = len(failed_addresses) > 0
         
         print(f"Geocoding completed: {len(geocoded_data)} successful, {len(failed_addresses)} failed")
         
@@ -332,17 +333,33 @@ def geocode_dataset(dataset_name, csv_file_path, progress_id):
 
 @app.route('/')
 def index():
-    """Main page - exactly like original app.py"""
     datasets = get_datasets()
     current_dataset = session.get('current_dataset')
     
-    # Load addresses for current dataset
-    addresses = load_valid_addresses(current_dataset)
+    if current_dataset and current_dataset in [d['name'] for d in datasets]:
+        df = load_valid_addresses(current_dataset)
+    elif datasets:
+        # Use the most recent dataset
+        current_dataset = datasets[0]['name']
+        session['current_dataset'] = current_dataset
+        df = load_valid_addresses(current_dataset)
+    else:
+        # Try legacy file
+        df = load_valid_addresses()
+        current_dataset = 'Default'
     
-    return render_template('map.html', 
-                         datasets=datasets, 
-                         current_dataset=current_dataset,
-                         addresses=addresses.to_dict('records') if not addresses.empty else [])
+    addresses_json = df.to_json(orient='records')
+    address_count = len(df)
+    
+    response = app.make_response(render_template('map.html', 
+                                                addresses_json=addresses_json,
+                                                address_count=address_count,
+                                                datasets=datasets,
+                                                current_dataset=current_dataset))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -426,16 +443,53 @@ def cancel_geocoding(progress_id):
 
 @app.route('/download_failed_addresses/<dataset_name>')
 def download_failed_addresses(dataset_name):
-    """Download failed addresses CSV"""
+    """Download failed addresses for a specific dataset"""
     try:
         failed_file = os.path.join(UPLOAD_FOLDER, dataset_name, 'failed_addresses.csv')
-        if os.path.exists(failed_file):
-            return send_file(failed_file, as_attachment=True, 
-                           download_name=f'{dataset_name}_failed_addresses.csv')
-        else:
-            return jsonify({'error': 'No failed addresses file found'}), 404
+        
+        if not os.path.exists(failed_file):
+            return jsonify({'error': 'No failed addresses file found for this dataset'}), 404
+        
+        # Read the failed addresses CSV and rename the column
+        try:
+            failed_df = pd.read_csv(failed_file)
+            
+            # Rename 'Family Name' column to 'Name' if it exists
+            if 'Family Name' in failed_df.columns:
+                failed_df = failed_df.rename(columns={'Family Name': 'Name'})
+                print(f"Renamed 'Family Name' column to 'Name' for failed addresses download")
+            
+            # Add PeopleID Link column if it doesn't exist
+            if 'PeopleID' in failed_df.columns and 'PeopleID Link' not in failed_df.columns:
+                failed_df['PeopleID Link'] = failed_df['PeopleID'].apply(
+                    lambda x: f"https://my.hpumc.org/Person2/{x}" if pd.notna(x) and str(x).strip() != '' else ''
+                )
+                print(f"Added PeopleID Link column for {len(failed_df)} failed addresses download")
+            
+            # Create a temporary file with the renamed column
+            import io
+            output = io.StringIO()
+            failed_df.to_csv(output, index=False)
+            output.seek(0)
+            
+            filename = f'failed_addresses_{dataset_name}.csv'
+            return send_file(io.BytesIO(output.getvalue().encode()), 
+                            mimetype='text/csv', 
+                            as_attachment=True, 
+                            download_name=filename)
+            
+        except Exception as e:
+            print(f"Error processing failed addresses file: {str(e)}")
+            # Fallback to original file if processing fails
+            filename = f'failed_addresses_{dataset_name}.csv'
+            return send_file(failed_file, 
+                            mimetype='text/csv', 
+                            as_attachment=True, 
+                            download_name=filename)
+        
     except Exception as e:
-        return jsonify({'error': f'Download failed: {str(e)}'}), 500
+        print(f"Error downloading failed addresses: {str(e)}")
+        return jsonify({'error': f'Failed to download failed addresses: {str(e)}'}), 500
 
 @app.route('/switch_dataset/<dataset_name>')
 def switch_dataset(dataset_name):
@@ -475,49 +529,49 @@ def delete_dataset(dataset_name):
 
 @app.route('/export_csv', methods=['POST'])
 def export_csv():
-    """Export selected addresses as CSV"""
-    try:
-        data = request.get_json()
-        selected_addresses = data.get('addresses', [])
-        
-        if not selected_addresses:
-            return jsonify({'error': 'No addresses selected'}), 400
-        
-        # Create DataFrame from selected addresses
-        df = pd.DataFrame(selected_addresses)
-        
-        # Calculate distances if center point provided
-        center_lat = data.get('center_lat')
-        center_lon = data.get('center_lon')
-        
-        if center_lat is not None and center_lon is not None:
-            def haversine(lat1, lon1, lat2, lon2):
-                R = 3959  # Earth's radius in miles
-                lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-                dlat = lat2 - lat1
-                dlon = lon2 - lon1
-                a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-                c = 2 * math.asin(math.sqrt(a))
-                return R * c
-            
-            df['Distance_Miles'] = df.apply(
-                lambda row: haversine(center_lat, center_lon, row['Latitude'], row['Longitude']),
-                axis=1
-            )
-            df = df.sort_values('Distance_Miles')
-        
-        # Generate filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"family_addresses_export_{timestamp}.csv"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        
-        # Save CSV
-        df.to_csv(filepath, index=False)
-        
-        return send_file(filepath, as_attachment=True, download_name=filename)
+    data = request.json
+    center = data['center']  # [lat, lng]
+    radius = data['radius']  # in meters
     
-    except Exception as e:
-        return jsonify({'error': f'Export failed: {str(e)}'}), 500
+    current_dataset = session.get('current_dataset')
+    df = load_valid_addresses(current_dataset)
+    
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371000  # meters
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        dphi = math.radians(lat2 - lat1)
+        dlambda = math.radians(lon2 - lon1)
+        a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+        return 2*R*math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    selected = df[df.apply(lambda row: haversine(center[0], center[1], row['Latitude'], row['Longitude']) <= radius, axis=1)]
+    
+    # Make a copy to avoid SettingWithCopyWarning
+    selected = selected.copy()
+    
+    # Rename 'Family Name' column to 'Name' if it exists
+    if 'Family Name' in selected.columns:
+        selected = selected.rename(columns={'Family Name': 'Name'})
+        print(f"Renamed 'Family Name' column to 'Name' for export")
+    
+    # Add PeopleID Link column
+    if 'PeopleID' in selected.columns:
+        selected['PeopleID Link'] = selected['PeopleID'].apply(
+            lambda x: f"https://my.hpumc.org/Person2/{x}" if pd.notna(x) and str(x).strip() != '' else ''
+        )
+        print(f"Added PeopleID Link column for {len(selected)} selected addresses")
+    
+    import io
+    output = io.StringIO()
+    selected.to_csv(output, index=False)
+    output.seek(0)
+    
+    filename = f'selected_addresses_{current_dataset or "default"}.csv'
+    return send_file(io.BytesIO(output.getvalue().encode()), 
+                     mimetype='text/csv', 
+                     as_attachment=True, 
+                     download_name=filename)
 
 def open_browser():
     """Open the default web browser to the app"""

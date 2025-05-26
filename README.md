@@ -1,209 +1,178 @@
-# Family Mapping App 🗺️
+# 📍 Family Mapping App
 
-An interactive web application for mapping family addresses with geocoding capabilities and CSV export functionality.
+**Interactive church family address mapping application with geocoding and neighborhood visualization**
 
-![Family Mapping App](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)
-![Version](https://img.shields.io/badge/Version-v0.0.4-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-![Windows](https://img.shields.io/badge/Windows-10+-blue?logo=windows)
-![macOS](https://img.shields.io/badge/macOS-10.14+-black?logo=apple)
-![Linux](https://img.shields.io/badge/Linux-Ubuntu%2018.04+-orange?logo=linux)
+Created by **Matt Keathley @ Highland Park United Methodist Church (HPUMC)** using the **Cursor App** and **Vibe Coding Method**.
+
+## 🎯 Purpose
+
+The Family Mapping App is designed specifically for churches to:
+- **Map church families** on an interactive map
+- **Visualize neighborhoods** where congregation members live
+- **Identify geographic clusters** for ministry planning
+- **Export family data** for outreach and pastoral care
+- **Manage multiple datasets** for different ministries or events
+
+Perfect for mission trips, small group organization, pastoral visits, and understanding your congregation's geographic distribution.
 
 ## ✨ Features
 
-- 📍 **Interactive Map**: Upload CSV files with addresses and see them plotted on an interactive map
-- 🌍 **Geocoding**: Automatic address-to-coordinates conversion using multiple geocoding services
-- 📊 **Data Management**: View, edit, and manage your address data in a user-friendly interface
-- 💾 **Export Options**: Download your geocoded data as CSV files
-- 🔄 **Persistent Storage**: Your data is automatically saved and persists between sessions
-- 🐳 **Docker Ready**: Easy deployment with Docker - no complex setup required
-- 💻 **Cross-Platform Standalone**: Available for Windows, macOS, and Linux - no installation required!
+### 🗺️ **Interactive Mapping**
+- **Dallas-centered map** with OpenStreetMap tiles
+- **Family markers** with popup details (name, address, contact info)
+- **Circle selection tool** for neighborhood analysis
+- **Zoom and pan** for detailed exploration
 
-## 🚀 Quick Start (Choose Your Option)
+### 📊 **Smart CSV Processing**
+- **Automatic header detection** - works with or without column headers
+- **Positional mapping** for consistent data import
+- **Multiple dataset management** with easy switching
+- **Progress tracking** with real-time geocoding updates
 
-### Option 1: Standalone Version (Easiest - No Installation Required!) ⭐
+### 🎯 **Neighborhood Analysis**
+- **Draw circles** on the map to select geographic areas
+- **Export selected families** to CSV for targeted outreach
+- **Count families** in specific neighborhoods
+- **Visual clustering** to identify ministry opportunities
 
-**Perfect for non-technical users who just want to run the app immediately**
+### 📥 **Data Management**
+- **Upload multiple CSV files** with different family groups
+- **Switch between datasets** (Youth Ministry, Mission Trip, etc.)
+- **Download failed geocoding results** for manual review
+- **Clear datasets** with confirmation prompts
 
-#### 🪟 Windows Users
-1. **Download**: Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases) → Download `family-mapping-app-standalone-windows-v*.zip`
-2. **Extract**: Unzip the file to a folder on your computer
-3. **Run**: **Double-click** `START_HERE.bat`
-4. **Use**: Your browser opens automatically - start mapping!
+## 🚀 Quick Start
 
-**Requirements**: Windows 10+, Internet connection
+### Option 1: Download Standalone App (Recommended)
+1. Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases)
+2. Download for your platform:
+   - **Windows**: `family-mapping-app-standalone-windows-v*.zip`
+   - **macOS**: `family-mapping-app-standalone-macos-v*.zip`
+   - **Linux**: `family-mapping-app-standalone-linux-v*.tar.gz`
+3. Extract and run the executable
+4. Open http://localhost:8765 in your browser
 
-#### 🍎 macOS Users
-1. **Download**: Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases) → Download `family-mapping-app-standalone-macos-v*.zip`
-2. **Extract**: Unzip the file to a folder on your Mac
-3. **Run**: **Double-click** `START_HERE.sh` (or open Terminal and run `./START_HERE.sh`)
-4. **Security**: If macOS blocks it, go to **System Preferences > Security & Privacy** and click "Open Anyway"
-5. **Use**: Your browser opens automatically - start mapping!
-
-**Requirements**: macOS 10.14+, Internet connection
-
-#### 🐧 Linux Users
-1. **Download**: Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases) → Download `family-mapping-app-standalone-linux-v*.tar.gz`
-2. **Extract**: Run `tar -xzf family-mapping-app-standalone-linux-v*.tar.gz`
-3. **Run**: Open Terminal in the extracted folder and run `./START_HERE.sh`
-4. **Use**: Your browser opens automatically - start mapping!
-
-**Requirements**: Modern Linux distribution (Ubuntu 18.04+, Fedora 30+, etc.), Internet connection
-
-### Option 2: Docker Version (For Technical Users)
-
-**Best for developers or users who want the latest features**
-
-1. **Install Docker Desktop**:
-   - **Windows/Mac**: Download from [docker.com](https://www.docker.com/products/docker-desktop)
-   - Follow the installation wizard and start Docker Desktop
-
-2. **Download the App**:
-   - Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases)
-   - Download the latest `family-mapping-app-v*.zip` file
-   - Extract it to a folder on your computer
-
-3. **Run the Application**:
-   - **Windows**: Double-click `start-app-hub.bat`
-   - **Mac/Linux**: Open Terminal, navigate to the folder, run `./start-app-hub.sh`
-
-4. **Access the App**:
-   - Open your web browser
-   - Go to: http://localhost:8765
-   - Start uploading and mapping your addresses! 🎉
-
-### Option 3: Docker Command Line
-
-If you're comfortable with command line:
-
+### Option 2: Run from Source
 ```bash
-# Create a folder for your data
-mkdir family-mapping-data
-cd family-mapping-data
-
-# Run the app
-docker run -d \
-  --name family-mapping-app \
-  -p 8765:8765 \
-  -v "$(pwd)/datasets:/app/datasets" \
-  --restart unless-stopped \
-  mkeathley75028/family-mapping-app:latest
-
-# Open http://localhost:8765 in your browser
-```
-
-### Option 4: Clone & Build (For Developers)
-
-```bash
+# Clone repository
 git clone https://github.com/mkeathley2/family-mapping-app.git
 cd family-mapping-app
 
-# Windows:
-start-app.bat
+# Install dependencies
+pip install flask pandas geopy
 
-# Mac/Linux:
-./start-app.sh
+# Run application
+python app.py
 ```
 
-## 📋 Requirements
+## 📋 CSV Format
 
-### Standalone Versions
-- **Windows**: Windows 10 or newer, 4GB RAM, Internet connection
-- **macOS**: macOS 10.14 Mojave or newer, 4GB RAM, Internet connection  
-- **Linux**: Modern distribution (Ubuntu 18.04+, Fedora 30+), 4GB RAM, Internet connection
+The app accepts CSV files with family information. Headers are optional - the app uses smart detection.
 
-### Docker Version
-- **Docker Desktop** (Windows/Mac) or **Docker Engine** (Linux)
-- **Web Browser** (Chrome, Firefox, Safari, Edge)
-- **4GB RAM** minimum
-- **1GB free disk space**
+### Expected Columns (in order):
+1. **Family Name** - "The Smith Family"
+2. **Address** - "123 Main St"
+3. **Unused** - (can be empty)
+4. **City** - "Dallas"
+5. **State** - "TX"
+6. **Zip Code** - "75205"
+7. **PeopleID** - Unique identifier (optional)
 
-## 📁 Data Persistence
+### Example CSV:
+```csv
+The Johnson Family,456 Oak Ave,,Dallas,TX,75214,12345
+The Williams Family,789 Pine St,,Plano,TX,75023,12346
+```
 
-- Your data is automatically saved in a `datasets` folder
-- This folder persists between app updates and restarts
-- You can backup this folder to preserve your data
-- When updating the app, your data will be preserved
+## 🎯 Church Use Cases
 
-## 🔄 Updating the App
+### 📍 **Mission Trip Planning**
+- Upload mission trip participant addresses
+- Identify carpooling opportunities by neighborhood
+- Plan pickup routes and meeting locations
 
-### For Standalone Users:
-- Download the new standalone version for your platform from releases
-- Extract and run - your data in the `datasets` folder will be preserved
+### 🏠 **Small Group Organization**
+- Map small group members by geographic area
+- Form neighborhood-based groups
+- Optimize meeting locations
 
-### For Docker Users:
-- Download and run the new start scripts from the latest release
+### 👥 **Pastoral Care**
+- Visualize congregation distribution
+- Plan efficient visitation routes
+- Identify isolated members needing outreach
 
-### For Command Line Users:
+### 🎉 **Event Planning**
+- Map event attendees
+- Choose optimal venue locations
+- Coordinate transportation
+
+## 🛠️ Technical Details
+
+- **Framework**: Flask web application
+- **Mapping**: Leaflet.js with OpenStreetMap
+- **Geocoding**: Nominatim service with rate limiting
+- **Data**: Pandas for CSV processing
+- **Standalone**: PyInstaller for cross-platform executables
+
+## 🔧 Development
+
+### Local Development
 ```bash
-docker stop family-mapping-app
-docker rm family-mapping-app
-docker pull mkeathley75028/family-mapping-app:latest
-# Then run the docker run command again
+# Install dependencies
+pip install flask pandas geopy pyinstaller
+
+# Run development server
+python app.py
+
+# Build standalone executable
+pyinstaller app_standalone.spec
 ```
 
-### For Developers:
-```bash
-git pull
-# Windows: update-app.bat
-# Mac/Linux: ./update-app.sh
-```
+### Building Releases
+The project uses GitHub Actions for automated cross-platform builds:
+- **Windows**: PyInstaller executable
+- **macOS**: PyInstaller app bundle  
+- **Linux**: PyInstaller binary
 
-## 🛠️ Troubleshooting
+## 📖 Usage Guide
 
-### Standalone Version Issues:
+### 1. **Upload Family Data**
+- Click "Upload New Dataset"
+- Enter a descriptive name (e.g., "Youth Ministry 2024")
+- Select your CSV file
+- Watch real-time geocoding progress
 
-#### Windows:
-- **App won't start?** Try right-clicking `START_HERE.bat` and selecting "Run as administrator"
-- **Browser doesn't open?** Manually go to: http://localhost:8765
+### 2. **Explore the Map**
+- View all family locations as markers
+- Click markers for family details
+- Use zoom controls for detailed view
 
-#### macOS:
-- **Security warning?** Go to **System Preferences > Security & Privacy** and click "Open Anyway"
-- **App won't start?** Try opening Terminal and running: `chmod +x START_HERE.sh && ./START_HERE.sh`
+### 3. **Analyze Neighborhoods**
+- Click "Draw Circle Mode"
+- Click and drag to create selection circles
+- Click "Export Selection to CSV" to download families in that area
 
-#### Linux:
-- **Permission denied?** Run: `chmod +x START_HERE.sh FamilyMappingApp`
-- **Missing libraries?** Install: `sudo apt install libc6 libgcc1` (Ubuntu/Debian)
+### 4. **Manage Datasets**
+- Switch between different family groups
+- Delete old datasets
+- Clear all data when needed
 
-### Docker Version Issues:
+## 🤝 Contributing
 
-**"Docker is not running"**:
-- Make sure Docker Desktop is installed and running
-- Look for the Docker whale icon in your system tray/menu bar
-
-**Port 8765 already in use**:
-- Stop any existing containers: `docker stop family-mapping-app`
-- Or restart your computer
-
-**Permission errors**:
-- Make sure you have admin/sudo privileges
-- On Mac/Linux: `chmod +x *.sh`
-
-**Can't access http://localhost:8765**:
-- Wait a minute for the app to fully start
-- Check if container is running: `docker ps`
-- Check logs: `docker logs family-mapping-app`
-
-## 🤝 Support
-
-If you encounter any issues:
-
-1. Check the troubleshooting section above
-2. Make sure you have the minimum system requirements
-3. Try restarting the app or your computer
-4. [Open an issue](https://github.com/mkeathley2/family-mapping-app/issues) with specific error messages
+This project was created using the **Vibe Coding Method** with **Cursor App** for rapid development and AI-assisted coding.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Created for Highland Park United Methodist Church and the broader church community.
 
 ## 🙏 Acknowledgments
 
-- Built with Flask and Leaflet.js
-- Geocoding powered by OpenStreetMap's Nominatim service
-- Containerized with Docker for easy deployment
-- Cross-platform standalone versions created with PyInstaller
+- **Highland Park United Methodist Church** for the ministry vision
+- **Cursor App** for AI-powered development
+- **Vibe Coding Method** for rapid prototyping
+- **OpenStreetMap** for mapping data
+- **Nominatim** for geocoding services
 
 ---
 
-**Made with ❤️ for families who want to visualize their connections across the map** 
+*Built with ❤️ for church ministry and community connection* 
