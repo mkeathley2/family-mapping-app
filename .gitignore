@@ -9,6 +9,7 @@ datasets/*
 # Any CSV files that might contain addresses (except sample)
 *.csv
 !sample_addresses.csv
+!sample_family_addresses.csv
 
 # Python cache and compiled files
 *.pyc
