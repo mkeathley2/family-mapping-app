@@ -1,0 +1,174 @@
+name: Build Cross-Platform Standalone Versions
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v0.0.5)'
+        required: true
+        default: 'v0.0.5'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask requests
+    
+    - name: Build Windows executable
+      run: |
+        pyinstaller family_mapping_app.spec
+    
+    - name: Create Windows package
+      run: |
+        mkdir standalone-package-windows
+        copy "dist\FamilyMappingApp.exe" "standalone-package-windows\"
+        copy "START_HERE.bat" "standalone-package-windows\"
+        copy "STANDALONE_README.md" "standalone-package-windows\README.md"
+        copy "sample_family_addresses.csv" "standalone-package-windows\"
+        echo Family Mapping App - Standalone Version for Windows > standalone-package-windows\VERSION.txt
+        echo Version: ${{ github.event.inputs.version || github.ref_name }} >> standalone-package-windows\VERSION.txt
+        echo Build Date: %date% %time% >> standalone-package-windows\VERSION.txt
+    
+    - name: Create Windows zip
+      run: |
+        powershell -Command "Compress-Archive -Path 'standalone-package-windows\*' -DestinationPath 'family-mapping-app-standalone-windows-${{ github.event.inputs.version || github.ref_name }}.zip' -Force"
+    
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: windows-standalone
+        path: family-mapping-app-standalone-windows-*.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask requests
+    
+    - name: Build macOS executable
+      run: |
+        pyinstaller family_mapping_app_macos.spec
+    
+    - name: Create macOS package
+      run: |
+        mkdir standalone-package-macos
+        cp dist/FamilyMappingApp standalone-package-macos/
+        cp START_HERE.sh standalone-package-macos/
+        cp STANDALONE_README_MACOS.md standalone-package-macos/README.md
+        cp sample_family_addresses.csv standalone-package-macos/
+        chmod +x standalone-package-macos/START_HERE.sh
+        chmod +x standalone-package-macos/FamilyMappingApp
+        echo "Family Mapping App - Standalone Version for macOS" > standalone-package-macos/VERSION.txt
+        echo "Version: ${{ github.event.inputs.version || github.ref_name }}" >> standalone-package-macos/VERSION.txt
+        echo "Build Date: $(date)" >> standalone-package-macos/VERSION.txt
+    
+    - name: Create macOS zip
+      run: |
+        zip -r family-mapping-app-standalone-macos-${{ github.event.inputs.version || github.ref_name }}.zip standalone-package-macos/
+    
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: macos-standalone
+        path: family-mapping-app-standalone-macos-*.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller flask requests
+    
+    - name: Build Linux executable
+      run: |
+        pyinstaller family_mapping_app_linux.spec
+    
+    - name: Create Linux package
+      run: |
+        mkdir standalone-package-linux
+        cp dist/FamilyMappingApp standalone-package-linux/
+        cp START_HERE.sh standalone-package-linux/
+        cp STANDALONE_README_LINUX.md standalone-package-linux/README.md
+        cp sample_family_addresses.csv standalone-package-linux/
+        chmod +x standalone-package-linux/START_HERE.sh
+        chmod +x standalone-package-linux/FamilyMappingApp
+        echo "Family Mapping App - Standalone Version for Linux" > standalone-package-linux/VERSION.txt
+        echo "Version: ${{ github.event.inputs.version || github.ref_name }}" >> standalone-package-linux/VERSION.txt
+        echo "Build Date: $(date)" >> standalone-package-linux/VERSION.txt
+    
+    - name: Create Linux tar.gz
+      run: |
+        tar -czf family-mapping-app-standalone-linux-${{ github.event.inputs.version || github.ref_name }}.tar.gz standalone-package-linux/
+    
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: linux-standalone
+        path: family-mapping-app-standalone-linux-*.tar.gz
+
+  upload-to-release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Upload Windows release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./windows-standalone/family-mapping-app-standalone-windows-${{ github.ref_name }}.zip
+        asset_name: family-mapping-app-standalone-windows-${{ github.ref_name }}.zip
+        asset_content_type: application/zip
+    
+    - name: Upload macOS release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./macos-standalone/family-mapping-app-standalone-macos-${{ github.ref_name }}.zip
+        asset_name: family-mapping-app-standalone-macos-${{ github.ref_name }}.zip
+        asset_content_type: application/zip
+    
+    - name: Upload Linux release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./linux-standalone/family-mapping-app-standalone-linux-${{ github.ref_name }}.tar.gz
+        asset_name: family-mapping-app-standalone-linux-${{ github.ref_name }}.tar.gz
+        asset_content_type: application/gzip 

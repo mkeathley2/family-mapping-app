@@ -3,8 +3,11 @@
 An interactive web application for mapping family addresses with geocoding capabilities and CSV export functionality.
 
 ![Family Mapping App](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)
-![Version](https://img.shields.io/badge/Version-v0.0.3-green)
+![Version](https://img.shields.io/badge/Version-v0.0.4-green)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Windows](https://img.shields.io/badge/Windows-10+-blue?logo=windows)
+![macOS](https://img.shields.io/badge/macOS-10.14+-black?logo=apple)
+![Linux](https://img.shields.io/badge/Linux-Ubuntu%2018.04+-orange?logo=linux)
 
 ## ✨ Features
 
@@ -14,7 +17,7 @@ An interactive web application for mapping family addresses with geocoding capab
 - 💾 **Export Options**: Download your geocoded data as CSV files
 - 🔄 **Persistent Storage**: Your data is automatically saved and persists between sessions
 - 🐳 **Docker Ready**: Easy deployment with Docker - no complex setup required
-- 💻 **Standalone Version**: No installation required - just download and run!
+- 💻 **Cross-Platform Standalone**: Available for Windows, macOS, and Linux - no installation required!
 
 ## 🚀 Quick Start (Choose Your Option)
 
@@ -22,22 +25,30 @@ An interactive web application for mapping family addresses with geocoding capab
 
 **Perfect for non-technical users who just want to run the app immediately**
 
-1. **Download the Standalone Version**:
-   - Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases)
-   - Download `family-mapping-app-standalone-v*.zip`
-   - Extract the zip file to a folder on your computer
+#### 🪟 Windows Users
+1. **Download**: Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases) → Download `family-mapping-app-standalone-windows-v*.zip`
+2. **Extract**: Unzip the file to a folder on your computer
+3. **Run**: **Double-click** `START_HERE.bat`
+4. **Use**: Your browser opens automatically - start mapping!
 
-2. **Run the App**:
-   - **Double-click** `START_HERE.bat`
-   - Wait for the app to start (may take a moment)
-   - Your web browser will open automatically to the app
+**Requirements**: Windows 10+, Internet connection
 
-3. **Use the App**:
-   - Upload your CSV file with family addresses
-   - See them mapped automatically!
-   - Download results with coordinates
+#### 🍎 macOS Users
+1. **Download**: Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases) → Download `family-mapping-app-standalone-macos-v*.zip`
+2. **Extract**: Unzip the file to a folder on your Mac
+3. **Run**: **Double-click** `START_HERE.sh` (or open Terminal and run `./START_HERE.sh`)
+4. **Security**: If macOS blocks it, go to **System Preferences > Security & Privacy** and click "Open Anyway"
+5. **Use**: Your browser opens automatically - start mapping!
 
-**Requirements**: Windows 10+, Internet connection. That's it! 🎉
+**Requirements**: macOS 10.14+, Internet connection
+
+#### 🐧 Linux Users
+1. **Download**: Go to [Releases](https://github.com/mkeathley2/family-mapping-app/releases) → Download `family-mapping-app-standalone-linux-v*.tar.gz`
+2. **Extract**: Run `tar -xzf family-mapping-app-standalone-linux-v*.tar.gz`
+3. **Run**: Open Terminal in the extracted folder and run `./START_HERE.sh`
+4. **Use**: Your browser opens automatically - start mapping!
+
+**Requirements**: Modern Linux distribution (Ubuntu 18.04+, Fedora 30+, etc.), Internet connection
 
 ### Option 2: Docker Version (For Technical Users)
 
@@ -96,10 +107,10 @@ start-app.bat
 
 ## 📋 Requirements
 
-### Standalone Version
-- **Windows 10 or newer**
-- **Internet connection** (for geocoding and map tiles)
-- **4GB RAM** minimum
+### Standalone Versions
+- **Windows**: Windows 10 or newer, 4GB RAM, Internet connection
+- **macOS**: macOS 10.14 Mojave or newer, 4GB RAM, Internet connection  
+- **Linux**: Modern distribution (Ubuntu 18.04+, Fedora 30+), 4GB RAM, Internet connection
 
 ### Docker Version
 - **Docker Desktop** (Windows/Mac) or **Docker Engine** (Linux)
@@ -117,7 +128,7 @@ start-app.bat
 ## 🔄 Updating the App
 
 ### For Standalone Users:
-- Download the new standalone version from releases
+- Download the new standalone version for your platform from releases
 - Extract and run - your data in the `datasets` folder will be preserved
 
 ### For Docker Users:
@@ -142,12 +153,17 @@ git pull
 
 ### Standalone Version Issues:
 
-**App won't start?**
-- Make sure you're running Windows 10 or newer
-- Try right-clicking `START_HERE.bat` and selecting "Run as administrator"
+#### Windows:
+- **App won't start?** Try right-clicking `START_HERE.bat` and selecting "Run as administrator"
+- **Browser doesn't open?** Manually go to: http://localhost:8765
 
-**Browser doesn't open?**
-- Manually open your web browser and go to: http://localhost:8765
+#### macOS:
+- **Security warning?** Go to **System Preferences > Security & Privacy** and click "Open Anyway"
+- **App won't start?** Try opening Terminal and running: `chmod +x START_HERE.sh && ./START_HERE.sh`
+
+#### Linux:
+- **Permission denied?** Run: `chmod +x START_HERE.sh FamilyMappingApp`
+- **Missing libraries?** Install: `sudo apt install libc6 libgcc1` (Ubuntu/Debian)
 
 ### Docker Version Issues:
 
@@ -186,7 +202,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with Flask and Leaflet.js
 - Geocoding powered by OpenStreetMap's Nominatim service
 - Containerized with Docker for easy deployment
-- Standalone version created with PyInstaller
+- Cross-platform standalone versions created with PyInstaller
 
 ---
 

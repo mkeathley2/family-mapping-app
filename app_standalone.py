@@ -2,6 +2,7 @@
 """
 Family Mapping App - Standalone Version
 A simplified version optimized for PyInstaller packaging
+Cross-platform support for Windows, macOS, and Linux
 """
 
 import os
@@ -11,6 +12,7 @@ import csv
 import webbrowser
 import threading
 import time
+import platform
 from datetime import datetime
 from pathlib import Path
 
@@ -31,7 +33,10 @@ try:
 except ImportError as e:
     print(f"Error importing required modules: {e}")
     print("Please make sure all dependencies are installed.")
-    input("Press Enter to exit...")
+    if platform.system() == "Windows":
+        input("Press Enter to exit...")
+    else:
+        input("Press Enter to exit...")
     sys.exit(1)
 
 app = Flask(__name__)
@@ -262,9 +267,24 @@ def open_browser():
     time.sleep(1.5)  # Give the server time to start
     webbrowser.open('http://localhost:8765')
 
+def get_platform_info():
+    """Get platform-specific information"""
+    system = platform.system()
+    if system == "Darwin":
+        return "macOS", "🍎"
+    elif system == "Linux":
+        return "Linux", "🐧"
+    elif system == "Windows":
+        return "Windows", "🪟"
+    else:
+        return system, "💻"
+
 def main():
+    platform_name, platform_emoji = get_platform_info()
+    
     print("=" * 50)
-    print("    Family Mapping App - Standalone Version")
+    print(f"    Family Mapping App - Standalone Version")
+    print(f"    Running on {platform_name} {platform_emoji}")
     print("=" * 50)
     print()
     print("Starting the application...")
@@ -282,7 +302,10 @@ def main():
         print()
         print("If the browser doesn't open, manually go to: http://localhost:8765")
         print()
-        print("To stop the application, close this window or press Ctrl+C")
+        if platform.system() == "Windows":
+            print("To stop the application, close this window or press Ctrl+C")
+        else:
+            print("To stop the application, press Ctrl+C in this terminal")
         print("=" * 50)
         
         app.run(host='0.0.0.0', port=8765, debug=False, use_reloader=False)
@@ -291,7 +314,10 @@ def main():
         print("\nShutting down...")
     except Exception as e:
         print(f"Error starting server: {e}")
-        input("Press Enter to exit...")
+        if platform.system() == "Windows":
+            input("Press Enter to exit...")
+        else:
+            input("Press Enter to exit...")
 
 if __name__ == '__main__':
     main() 
