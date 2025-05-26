@@ -27,7 +27,7 @@ REM Create version info
 echo Creating version info...
 (
 echo Family Mapping App - Standalone Version
-echo Version: v0.0.3-standalone
+echo Version: v0.0.5-standalone
 echo Build Date: %date% %time%
 echo.
 echo This package contains:
@@ -41,8 +41,8 @@ echo No installation required - just double-click START_HERE.bat!
 
 REM Create zip file
 echo Creating zip file...
-if exist "family-mapping-app-standalone-v0.0.3.zip" del "family-mapping-app-standalone-v0.0.3.zip"
-powershell -Command "Compress-Archive -Path 'standalone-package\*' -DestinationPath 'family-mapping-app-standalone-v0.0.3.zip' -Force"
+if exist "family-mapping-app-standalone-v0.0.5.zip" del "family-mapping-app-standalone-v0.0.5.zip"
+powershell -Command "Compress-Archive -Path 'standalone-package\*' -DestinationPath 'family-mapping-app-standalone-v0.0.5.zip' -Force"
 
 echo.
 echo ========================================
@@ -51,7 +51,7 @@ echo ========================================
 echo.
 echo Files created:
 echo - standalone-package\ ^(folder with all files^)
-echo - family-mapping-app-standalone-v0.0.3.zip ^(ready for distribution^)
+echo - family-mapping-app-standalone-v0.0.5.zip ^(ready for distribution^)
 echo.
 echo The zip file is ready to share with non-technical users!
 echo They just need to:
